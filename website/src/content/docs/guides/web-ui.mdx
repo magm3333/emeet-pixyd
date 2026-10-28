@@ -89,6 +89,44 @@ Click a preset name to recall it. Click the `x` button to delete.
 
 Maximum 16 presets. Names must be non-empty, 32 characters or fewer, with no path separators or control characters.
 
+## Route recording and playback
+
+The **Modo recorrido** section appears below the live preview. Start recording,
+move the camera with the PTZ sliders, mouse drag, or keyboard controls, then
+stop to name and save the route. Saved routes appear as chips like presets;
+each can be played, deleted, looped, or played ping-pong.
+
+To keep recorded movement deterministic, recording/playback temporarily puts
+the camera in Idle if AI tracking was active. The Track/Idle/Privacy cards are
+locked while a route is active. Stop, discard, normal completion, and playback
+cancellation restore the exact Track, Idle, or Privacy mode that was active
+before that operation. The status panel and route controls are morphed over
+SSE, so the Stop control returns to the start/save controls when the operation
+ends, including when a route completes naturally.
+
+The camera firmware performs the AI person/gesture detection; emeet-pixyd sends
+HID mode commands and does not run a vision model on the host.
+
+The language toggle selects Spanish or English and persists the choice in the
+browser. PTZ mouse controls and capture-resolution/FPS controls sit directly
+under the preview.
+
+## Phone layout
+
+On phone-sized screens or touch-first browsers, the same page switches to a
+full-viewport camera preview. The rest of the dashboard is hidden, while touch
+drag continues to control pan/tilt. An on-video directional pad gives precise
+pan/tilt nudges and `+`/`−` buttons control zoom. The controls are native
+buttons with translated screen-reader labels and remain keyboard-operable.
+
+## Phone layout
+
+On phone-sized screens or touch-first browsers, the same page switches to a
+full-viewport camera preview. The rest of the dashboard is hidden, while touch
+drag continues to control pan/tilt. An on-video directional pad gives precise
+pan/tilt nudges and `+`/`−` buttons control zoom. The controls are native
+buttons with translated screen-reader labels and remain keyboard-operable.
+
 ## Snapshot
 
 Click the camera icon overlay on the preview to capture a still frame. The image downloads as `pixy-YYYY-MM-DD-HH-MM-SS.jpg`.

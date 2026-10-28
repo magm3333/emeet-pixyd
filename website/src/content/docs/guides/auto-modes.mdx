@@ -84,6 +84,12 @@ this on startup or hotplug and re-applies your persisted mode (so privacy
 mode physically re-blocks the lens after a power cut). Audio and gesture
 settings are adopted from the hardware on replug instead.
 
+Route recording and playback are an explicit temporary override: if the PIXY
+was tracking, the daemon switches it to Idle for deterministic PTZ movement
+and restores the previous camera mode after stop, discard, completion, or
+playback cancellation. Other auto-mode camera changes are suppressed while a
+route is active.
+
 This fits headless or on-demand setups, e.g. a
 [Home Assistant](https://www.home-assistant.io/) voice/vision assistant that
 toggles tracking/privacy on demand and grabs focused snapshots via FFmpeg

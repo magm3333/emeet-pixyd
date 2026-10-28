@@ -76,6 +76,7 @@ export default defineConfig({
           items: [
             { label: "Auto Modes", slug: "guides/auto-modes" },
             { label: "Web UI", slug: "guides/web-ui" },
+            { label: "Docker and Raspberry Pi", slug: "guides/docker" },
             { label: "CLI Reference", slug: "guides/cli-reference" },
             { label: "Configuration", slug: "guides/configuration" },
             { label: "PTZ Control", slug: "guides/ptz-control" },

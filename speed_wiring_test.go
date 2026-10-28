@@ -182,7 +182,15 @@ func TestPresetPush_ReassertsConfiguredSpeedsBeforeMoves(t *testing.T) {
 	t.Parallel()
 
 	sim, opt := withPixySimulator()
-	d := newTestDaemon(t, pixy.StateTracking, testVideoDev, testHIDDev, opt)
+	d := newTestDaemon(
+		t,
+		pixy.StateTracking,
+		testVideoDev,
+		testHIDDev,
+		opt,
+		withNoopV4L2(),
+		withNoopParsePTZ(),
+	)
 
 	d.mu.Lock()
 	d.state.Presets = pixy.PresetMap{"home": {Pan: 30, Tilt: -10, Zoom: 120}}
@@ -195,9 +203,9 @@ func TestPresetPush_ReassertsConfiguredSpeedsBeforeMoves(t *testing.T) {
 
 	reports := sim.SentReports()
 
-	// 3 speed re-asserts + 3 SetMotorPos + 1 SetMotorPresetPos.
-	if len(reports) != 7 {
-		t.Fatalf("preset push sent %d reports, want 7 (3 speeds, 3 moves, 1 save)", len(reports))
+	// 3 speed re-asserts + 1 SetMotorPresetPos. Position moves use V4L2.
+	if len(reports) != 4 {
+		t.Fatalf("preset push sent %d reports, want 4 (3 speeds, 1 save)", len(reports))
 	}
 
 	speedHead := pixy.V2SetMotorSpeed.WithIface(pixy.MotorMCUIface).Bytes()
@@ -205,6 +213,11 @@ func TestPresetPush_ReassertsConfiguredSpeedsBeforeMoves(t *testing.T) {
 		if string(reports[i][:4]) != string(speedHead) || reports[i][4] != byte(motor) {
 			t.Errorf("speed report %d = %x, want SetMotorSpeed for %s", i, reports[i], motor)
 		}
+	}
+
+	saveHead := pixy.V2SetMotorPresetPos.WithIface(pixy.MotorMCUIface).Bytes()
+	if string(reports[3][:4]) != string(saveHead) || reports[3][4] != 1 {
+		t.Errorf("hardware slot report = %x, want SetMotorPresetPos slot 1", reports[3])
 	}
 }
 
@@ -282,7 +295,15 @@ func TestWebPresetPushEndpoint(t *testing.T) {
 	t.Parallel()
 
 	sim, opt := withPixySimulator()
-	d := newTestDaemon(t, pixy.StateTracking, testVideoDev, testHIDDev, opt)
+	d := newTestDaemon(
+		t,
+		pixy.StateTracking,
+		testVideoDev,
+		testHIDDev,
+		opt,
+		withNoopV4L2(),
+		withNoopParsePTZ(),
+	)
 
 	d.mu.Lock()
 	d.state.Presets = pixy.PresetMap{"home": {Pan: 30, Tilt: -10, Zoom: 120}}
@@ -314,12 +335,12 @@ func TestWebPresetPushEndpoint(t *testing.T) {
 	wantSaveHead := pixy.V2SetMotorPresetPos.WithIface(pixy.MotorMCUIface).Bytes()
 	reports := sim.SentReports()
 
-	if len(reports) != 4 || string(reports[3][:4]) != string(wantSaveHead) {
-		t.Errorf("reports = %x, want 3 moves + slot save (no speeds configured)", reports)
+	if len(reports) != 1 || string(reports[0][:4]) != string(wantSaveHead) || reports[0][4] != 1 {
+		t.Errorf("reports = %x, want one hardware-slot save after V4L2 movement", reports)
 	}
 }
 
-func TestWebPresetChip_RendersConfirmedPush(t *testing.T) {
+func TestWebPresetChip_PushAppliesImmediately(t *testing.T) {
 	t.Parallel()
 
 	daemon := newTestDaemon(t, pixy.StateTracking, testVideoDev, testHIDDev, func(d *Daemon) {
@@ -332,11 +353,16 @@ func TestWebPresetChip_RendersConfirmedPush(t *testing.T) {
 
 	assertContainsAll(t, body, []string{
 		"preset-chip-push",
-		"/api/preset/push/desk",
-		"confirm(",
-		"The camera will physically move",
-		`aria-label="Push preset desk to camera hardware slot"`,
+		"/api/preset/push/",
+		"encodeURIComponent",
+		"desk",
+		`aria-label="Apply preset desk to camera immediately"`,
+		"Apply immediately: moves the camera and attempts to write its hardware preset slot",
 	})
+
+	if strings.Contains(body, "confirm(") {
+		t.Error("preset push should apply immediately without a confirmation prompt")
+	}
 }
 
 // --- #138: lock order regression (v4l2Mu → hidMu) ---

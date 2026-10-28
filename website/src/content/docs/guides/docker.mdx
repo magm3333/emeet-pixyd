@@ -1,0 +1,53 @@
+---
+title: Docker and Raspberry Pi
+description: Run the EMEET PIXY daemon image on amd64 or 64-bit arm64 hosts
+---
+
+The fork publishes a multi-platform image as
+[`magm3333/emeet-pixy-dual-cam`](https://hub.docker.com/r/magm3333/emeet-pixy-dual-cam)
+for Linux `amd64` and `arm64` (64-bit Raspberry Pi OS).
+
+## Run with Compose
+
+Install Docker Engine and Compose v2 on the Linux camera host. Identify the
+camera's nodes and their group IDs:
+
+```bash
+v4l2-ctl --list-devices
+ls -l /dev/video* /dev/hidraw*
+stat -c '%g %n' /dev/video0 /dev/hidraw4
+```
+
+Then configure and start the container:
+
+```bash
+git clone https://github.com/magm3333/emeet-pixyd.git
+cd emeet-pixyd
+cp docker/.env.example docker/.env
+# Set the matching video/hidraw paths and host GIDs in docker/.env.
+docker compose --env-file docker/.env -f docker/compose.yaml pull
+docker compose --env-file docker/.env -f docker/compose.yaml up -d --no-build
+```
+
+The UI is published on all IPv4 host interfaces at port `18090`, for example
+`http://raspi4:18090/`. The API has no authentication; restrict the port to a
+trusted LAN with the host firewall and do not forward it to the public internet.
+The state volume keeps presets and routes through container updates. If a camera
+reconnect receives a different device-node number, update `.env` and recreate
+the container.
+
+## Container defaults
+
+- Runs as an unprivileged numeric user, with only the configured video and
+  hidraw devices passed through.
+- Uses a read-only root filesystem and a persistent state volume.
+- Defaults `EMEET_PIXYD_AUTO=off`: a private container PID namespace cannot
+  inspect host conferencing applications, and PipeWire source switching also
+  needs the host's per-user PipeWire socket. Manual tracking, PTZ, audio mode
+  control by HID, route recording/playback, and the UI remain available.
+- The API has no authentication. Keep the published port on `127.0.0.1`; do
+  not expose it directly to an untrusted network.
+
+See the fork's [`docker/README.md`](https://github.com/magm3333/emeet-pixyd/blob/master/docker/README.md)
+for building, testing both architectures, Raspberry Pi device access, and
+Docker Hub publishing.

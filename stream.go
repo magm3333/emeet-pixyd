@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os/exec"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -63,12 +64,14 @@ func (s *webServer) handleSnapshot(responseWriter http.ResponseWriter, _ *http.R
 	}
 }
 
-func ffmpegStreamCmd(ctx context.Context, device string) *exec.Cmd {
+func ffmpegStreamCmd(ctx context.Context, device string, mode captureMode) *exec.Cmd {
 	return exec.CommandContext(
 		ctx,
 		ffmpegBin,
 		"-f", "v4l2",
-		"-input_format", "mjpeg",
+		"-input_format", mode.InputFormat,
+		"-video_size", fmt.Sprintf("%dx%d", mode.Width, mode.Height),
+		"-framerate", strconv.Itoa(mode.FPS),
 		"-i", device,
 		"-f", "image2pipe",
 		"-vcodec", "mjpeg",
@@ -191,7 +194,7 @@ func (s *webServer) setupStream(
 		slog.Warn("could not clear write deadline; stream may be cut off by server timeout", "error", dlErr)
 	}
 
-	cmd := ffmpegStreamCmd(ctx, status.Device)
+	cmd := ffmpegStreamCmd(ctx, status.Device, status.CaptureMode)
 
 	stdOut, pipeErr := cmd.StdoutPipe()
 	if pipeErr != nil {

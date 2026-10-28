@@ -18,11 +18,11 @@
     <img alt="Watch the 25s demo" src="https://img.shields.io/badge/watch_the_25s_demo-emeet--pixyd.lars.software-red?logo=youtube">
   </a>
   <br>
-  <a href="https://github.com/LarsArtmann/emeet-pixyd/actions/workflows/go-test.yml">
-    <img alt="Go tests" src="https://github.com/LarsArtmann/emeet-pixyd/actions/workflows/go-test.yml/badge.svg">
+  <a href="https://github.com/magm3333/emeet-pixyd/actions/workflows/go-test.yml">
+    <img alt="Go tests" src="https://github.com/magm3333/emeet-pixyd/actions/workflows/go-test.yml/badge.svg">
   </a>
-  <a href="https://github.com/LarsArtmann/emeet-pixyd/actions/workflows/nix.yml">
-    <img alt="Nix build" src="https://github.com/LarsArtmann/emeet-pixyd/actions/workflows/nix.yml/badge.svg">
+  <a href="https://github.com/magm3333/emeet-pixyd/actions/workflows/nix.yml">
+    <img alt="Nix build" src="https://github.com/magm3333/emeet-pixyd/actions/workflows/nix.yml/badge.svg">
   </a>
   <img alt="Go 1.27+" src="https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go">
   <img alt="Linux only" src="https://img.shields.io/badge/platform-Linux-FCC624?logo=linux">
@@ -35,6 +35,13 @@
 </p>
 
 ---
+
+> **Fork:** this repository is based on the original
+> [LarsArtmann/emeet-pixyd](https://github.com/LarsArtmann/emeet-pixyd) project
+> (MIT). This fork adds PTZ route recording/playback, a persistent Spanish/English
+> UI, capture-mode controls, and Docker images for `linux/amd64` and `linux/arm64`.
+
+**Contributor:** Mariano García Mattío (`magm`) — [magm3333@gmail.com](mailto:magm3333@gmail.com).
 
 ## Why
 
@@ -63,7 +70,7 @@ Skip this daemon if:
 - You don't own a PIXY-family device — the automation targets the EMEET PIXY (`328f:00c0`) and PIXY 2K (`328f:0118`). Other EMEET webcams (C960, C950, S600, …) are standard UVC cameras that the Linux kernel already drives completely; the daemon recognizes them and says so, but has nothing to automate. See [Supported Devices](#supported-devices). For general webcam tooling, reach for [webcamoid](https://webcamoid.github.io/) instead.
 - You're on **macOS or Windows** — this is Linux-only by design (HID hidraw, V4L2, `/proc`, netlink uevents).
 - The camera's own tracking toggle is enough for you — if you never forget to enable it, you don't need a daemon.
-- You want **cloud or AI features** — this is fully local, no network calls, no telemetry.
+- You want cloud or host-side AI inference — person tracking and gesture recognition run in the camera firmware; the daemon only controls those features over HID. It makes no cloud calls and sends no telemetry.
 - You need **multi-vendor webcam management** — this targets one device family. See [Related Tools](https://emeet-pixyd.lars.software/related-tools/) for general-purpose alternatives.
 
 ## Supported Devices
@@ -126,6 +133,12 @@ camera's intelligence underneath it.
 | **Auto-privacy**       | Physically blocks the lens when the call ends                                                    |
 | **Audio switching**    | Auto-switches PipeWire default source to PIXY on call start                                      |
 | **Web UI**             | Dark-themed DataStar control panel with live MJPEG preview, PTZ sliders, and toast notifications |
+| **Modo recorrido**     | Record manual PTZ routes, save named routes, and replay once, looped, or ping-pong             |
+| **Route safety**       | Suspends camera AI tracking during recording/playback and restores the exact previous mode     |
+| **Bilingual UI**       | Persistent Spanish/English selector                                                          |
+| **Phone UI**           | Full-screen preview with touch pan/tilt drag, directional nudges, and zoom buttons            |
+| **Phone UI**           | Full-screen preview with touch pan/tilt dragging, directional nudge buttons, and zoom controls |
+| **Docker**             | Multi-platform image for x86-64 and 64-bit Raspberry Pi                                       |
 | **Waybar integration** | JSON output for a custom Waybar module                                                           |
 | **Status API**         | `GET /api/status` JSON for Quickshell / DankMaterialShell bar widgets                            |
 | **Hotplug**            | Netlink uevent listener detects USB plug/unplug, auto-re-probes                                  |
@@ -140,7 +153,7 @@ Add the flake input and enable the module:
 
 ```nix
 # flake.nix
-inputs.emeet-pixyd.url = "github:LarsArtmann/emeet-pixyd";
+inputs.emeet-pixyd.url = "github:magm3333/emeet-pixyd";
 
 # In your nixosConfiguration:
 inputs.emeet-pixyd.nixosModules.default
@@ -162,10 +175,18 @@ That's it. The module installs the daemon, udev rules, systemd user service, and
 ### Build from Source
 
 ```bash
-git clone https://github.com/LarsArtmann/emeet-pixyd.git
+git clone https://github.com/magm3333/emeet-pixyd.git
 cd emeet-pixyd
 nix build    # or, with a Go ≥ 1.27.1 toolchain: go build -o emeet-pixyd .
 ```
+
+### Docker (amd64 and Raspberry Pi arm64)
+
+The multi-platform image is published as
+[`magm3333/emeet-pixy-dual-cam:latest`](https://hub.docker.com/r/magm3333/emeet-pixy-dual-cam)
+for `linux/amd64` and `linux/arm64`. See [`docker/README.md`](docker/README.md)
+for camera device permissions, Compose setup, reproducible builds, and test
+checklists.
 
 ## Usage
 
@@ -198,6 +219,12 @@ emeet-pixy preset push <name>   # Mirror a saved preset into a hardware motor sl
 emeet-pixy preset pull          # Sweep hardware slots into hw-N presets (read-only)
 emeet-pixy preset pull --dry-run # Preview the sweep without storing anything
 emeet-pixy preset list          # List all saved presets
+emeet-pixy route record start   # Start recording manual PTZ moves
+emeet-pixy route record stop   # Stop, then save with: route save <name>
+emeet-pixy route record discard # Discard an in-progress/pending recording
+emeet-pixy route play <name> [loop] [pingpong]
+emeet-pixy route stop           # Stop playback and restore camera mode
+emeet-pixy route list           # List saved routes
 emeet-pixy sync                 # Sync daemon state from camera hardware
 emeet-pixy probe                # Re-detect device (video + hidraw)
 emeet-pixy device               # Show current video device path + model
@@ -250,6 +277,12 @@ The daemon serves a dark-themed control panel at `http://127.0.0.1:8090` with:
 - Motor-speed sliders and a tracking-variant picker (face / half-body / full-body)
 - Snapshot button to capture still frames
 - Preset save/load/delete chips plus hardware-slot mirroring (`preset push` to slots, `preset pull` to sweep slots back)
+- Route record/save/discard/play/delete controls and a list of saved routes
+- Recording/playback automatically changes Track to Idle while the route runs and restores the exact prior Track/Idle/Privacy mode when it ends or is stopped
+- Loop and ping-pong playback options; camera mode controls are locked while a route is active
+- Persistent ES/EN language selector and selectable capture resolution/FPS
+- On narrow/coarse-pointer screens, a video-only layout with touch pan/tilt/zoom controls
+- On narrow/coarse-pointer screens, a video-only layout with touch pan/tilt/zoom controls
 - Camera model badge and battery row (shown when the device reports it)
 - Gesture control and auto-mode toggles
 - Toast notifications for state changes

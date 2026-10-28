@@ -1,6 +1,6 @@
 ---
 title: Installation
-description: Install emeet-pixyd on NixOS or build from source
+description: Install emeet-pixyd with Docker, on NixOS, or from source
 ---
 
 import { CardGrid, Card } from "@astrojs/starlight/components";
@@ -11,7 +11,31 @@ emeet-pixyd runs on Linux (x86_64 + aarch64) and requires an EMEET PIXY dual-cam
 
 - **Linux** (x86_64 or aarch64) — the daemon uses Linux-specific APIs (`/proc`, netlink, V4L2, hidraw)
 - **EMEET PIXY** webcam connected via USB
-- **Go 1.26+** (only for building from source)
+- **Go 1.27.1+** (only for building from source)
+
+## Docker (amd64 and Raspberry Pi arm64)
+
+The fork publishes `magm3333/emeet-pixy-dual-cam` for `linux/amd64` and
+`linux/arm64`. On a 64-bit Linux host with Docker Compose v2:
+
+```bash
+git clone https://github.com/magm3333/emeet-pixyd.git
+cd emeet-pixyd
+cp docker/.env.example docker/.env
+# Edit docker/.env to match the host's video/hidraw paths, GIDs, and UID/GID.
+mkdir -p docker/data
+chown "$(id -u):$(id -g)" docker/data
+docker compose --env-file docker/.env -f docker/compose.yaml pull
+docker compose --env-file docker/.env -f docker/compose.yaml up -d --no-build
+```
+
+Open `http://<host-LAN-IP>:18090/` (for example, `http://raspi4:18090/`). Compose
+publishes the unauthenticated API on all IPv4 interfaces, so restrict access to
+a trusted LAN with the host firewall. State persists under `docker/data/`, and
+the image defaults to manual mode because a private container `/proc` namespace
+cannot detect host calls. Detailed device, build, architecture-test, and Docker
+Hub publish instructions are in the fork's
+[`docker/README.md`](https://github.com/magm3333/emeet-pixyd/blob/master/docker/README.md).
 
 ## NixOS (recommended)
 
@@ -19,7 +43,7 @@ Add the flake input and enable the module:
 
 ```nix
 # flake.nix
-inputs.emeet-pixyd.url = "github:LarsArtmann/emeet-pixyd";
+inputs.emeet-pixyd.url = "github:magm3333/emeet-pixyd";
 
 # In your nixosConfiguration:
 inputs.emeet-pixyd.nixosModules.default
@@ -48,7 +72,7 @@ That's it. The module installs:
 ## Build from Source
 
 ```bash
-git clone https://github.com/LarsArtmann/emeet-pixyd.git
+git clone https://github.com/magm3333/emeet-pixyd.git
 cd emeet-pixyd
 nix build    # or: go build -o emeet-pixyd .
 ```

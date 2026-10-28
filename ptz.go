@@ -200,8 +200,18 @@ func (d *Daemon) handlePTZCommand(ctx context.Context, parts []string) CommandRe
 
 	// Update cache with known value for immediate accurate readback
 	// (avoids stale hardware readback while motor is still moving)
-	if cached, valid := d.ptzCache.Get(); valid {
-		d.ptzCache.Set(cached.Set(axis, val), ptzCacheTTL)
+	cached, cacheValid := d.ptzCache.Get()
+	if cacheValid {
+		merged := cached.Set(axis, val)
+		d.ptzCache.Set(merged, ptzCacheTTL)
+
+		// "Modo recorrido": every manual axis move — slider, mouse
+		// drag/click, or keyboard shortcut, all of which funnel through
+		// this one command — is captured as a route step if a recording
+		// is in progress. No-op when not recording. Needs the merged
+		// full position (the other two axes' last-known values), so it
+		// only fires when the cache was valid.
+		d.recordRouteStep(merged)
 	} else {
 		d.ptzCache.Invalidate()
 	}
@@ -331,6 +341,13 @@ func (d *Daemon) handleSpeedCommand(ctx context.Context, parts []string) Command
 	d.state.Speeds = d.state.Speeds.Set(axis, float32(speed))
 	d.saveStateOrLog("failed to save state")
 	d.mu.Unlock()
+
+	// "Modo recorrido": a bare speed change (no position move) still
+	// counts as a manual control and is captured if a recording is in
+	// progress, using the camera's last-known position.
+	if cached, valid := d.ptzCache.Get(); valid {
+		d.recordRouteStep(cached)
+	}
 	d.broadcastStateChanged()
 
 	return okResult(fmt.Sprintf("motor speed set: %s %g", motor, speed))
@@ -344,6 +361,10 @@ func (d *Daemon) handleSpeedCommand(ctx context.Context, parts []string) Command
 // reconcile should re-assert it like the camera mode — is a hardware
 // verification question (plan M27 / TODO #166).
 func (d *Daemon) handleTrackingVariantCommand(ctx context.Context, parts []string) CommandResult {
+	if d.routeBusy() {
+		return errResultMsg(respRouteCameraBusy)
+	}
+
 	if len(parts) < minCmdParts {
 		return errResultMsg(respTrackingUsage)
 	}

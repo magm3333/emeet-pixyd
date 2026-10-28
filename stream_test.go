@@ -6,11 +6,55 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/LarsArtmann/emeet-pixyd/internal/pixy"
 )
+
+func TestFFmpegStreamCmdUsesSelectedCaptureMode(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		modeID string
+		width  string
+		fps    string
+	}{
+		{modeID: defaultCaptureModeID, width: "1920x1080", fps: "30"},
+		{modeID: "4k30", width: "3840x2160", fps: "30"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.modeID, func(t *testing.T) {
+			t.Parallel()
+
+			mode, ok := captureModeForModel(pixy.ModelOriginal, test.modeID)
+			if !ok {
+				t.Fatalf("capture mode %q not registered", test.modeID)
+			}
+
+			got := ffmpegStreamCmd(context.Background(), "/dev/video0", mode).Args
+			want := []string{
+				ffmpegBin,
+				"-f", "v4l2",
+				"-input_format", mode.InputFormat,
+				"-video_size", test.width,
+				"-framerate", test.fps,
+				"-i", "/dev/video0",
+				"-f", "image2pipe",
+				"-vcodec", "mjpeg",
+				"-q:v", "5",
+				"-vf", "scale=640:-1",
+				"pipe:1",
+			}
+
+			if !reflect.DeepEqual(got, want) {
+				t.Errorf("ffmpegStreamCmd args = %v, want %v", got, want)
+			}
+		})
+	}
+}
 
 func newStreamDaemon(t *testing.T) (*Daemon, *webServer, *httptest.Server) {
 	t.Helper()

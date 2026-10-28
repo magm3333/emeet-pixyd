@@ -33,6 +33,7 @@ func TestWebPanelGolden_Tracking(t *testing.T) {
 		`segment`,
 		`preset-section`,
 		`preset-name-input`,
+		`preset-name-help`,
 		`preset-save-btn`,
 		`slider-pan`,
 		`slider-tilt`,
@@ -43,6 +44,57 @@ func TestWebPanelGolden_Tracking(t *testing.T) {
 		`/api/probe`,
 		`role="switch"`,
 		`data-on:click`,
+	})
+}
+
+func TestWebPage_PTZMouseControlsAndHelp(t *testing.T) {
+	t.Parallel()
+
+	daemon := testDaemonWithDevice(t, pixy.StateTracking)
+	server := newTestWebServer(t, daemon)
+
+	pageResponse := get(t, server.URL+"/")
+	defer pageResponse.Body.Close()
+	page := getBody(t, pageResponse)
+
+	assertContainsAll(t, page, []string{
+		`id="preview-img"`,
+		`id="mobile-ptz-controls"`,
+		`data-mobile-ptz-axis="pan"`,
+		`data-mobile-ptz-axis="tilt"`,
+		`data-mobile-ptz-axis="zoom"`,
+		`aria-label="Acercar"`,
+		`data-i18n-aria-label="mobile.zoomIn"`,
+		`id="route-section"`,
+		`Todavía no hay recorridos guardados. Aparecerán aquí.`,
+		`aria-describedby="preview-mouse-help"`,
+		`draggable="false"`,
+		`id="preview-mouse-help"`,
+		"arrastrá el video",
+		"derecha = pan positivo",
+		"arriba = tilt positivo",
+		"Doble clic: zoom +10",
+		"clic derecho: zoom −10",
+		`id="capture-mode-select"`,
+		`value="1080p30" selected`,
+		"Zoom digital disponible hasta 1,5×",
+		`/static/app.js?v=dev&amp;revision=mobile-ptz-1`,
+		`/static/style.css?v=dev&amp;revision=mobile-ptz-1`,
+		`/static/i18n.js?v=dev&amp;revision=mobile-ptz-1`,
+	})
+
+	assetResponse := get(t, server.URL+"/static/app.js")
+	defer assetResponse.Body.Close()
+	asset := getBody(t, assetResponse)
+
+	assertContainsAll(t, asset, []string{
+		`addEventListener("pointerdown"`,
+		`addEventListener("pointermove"`,
+		`addEventListener("dblclick"`,
+		`addEventListener("contextmenu"`,
+		`data-mobile-ptz-axis`,
+		`fetch("/api/capture-mode"`,
+		`/api/stream?mode=`,
 	})
 }
 

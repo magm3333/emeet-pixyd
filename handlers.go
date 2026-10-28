@@ -5,7 +5,9 @@ package main
 import (
 	"context"
 	"embed"
+	"encoding/json/v2"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/pprof"
@@ -90,6 +92,15 @@ func (s *webServer) getWebStatus(ctx context.Context) webStatus {
 		PresetNames:  snap.Presets,
 		TrackMode:    snap.TrackMode,
 		Speeds:       snap.Speeds,
+		CaptureMode:  s.daemon.currentCaptureMode(snap.Model),
+		CaptureModes: captureModesForModel(snap.Model),
+
+		Routes:            snap.Routes,
+		RecordingRoute:    snap.RecordingRoute,
+		RecordingSteps:    snap.RecordingSteps,
+		PendingRouteSteps: snap.PendingRouteSteps,
+		PlayingRoute:      snap.PlayingRoute,
+		RouteBusy:         snap.RouteBusy,
 	}
 
 	if status.Online {
@@ -205,6 +216,58 @@ func (s *webServer) handleStatusJSON(responseWriter http.ResponseWriter, request
 	}
 }
 
+type captureModeRequest struct {
+	Mode string `json:"mode"`
+}
+
+type captureModeResponse struct {
+	Mode          string `json:"mode"`
+	Label         string `json:"label"`
+	ZoomAvailable bool   `json:"zoomAvailable"`
+}
+
+func (s *webServer) handleCaptureMode(responseWriter http.ResponseWriter, request *http.Request) {
+	request.Body = http.MaxBytesReader(responseWriter, request.Body, maxBodyBytes)
+
+	body, readErr := io.ReadAll(request.Body)
+	if readErr != nil {
+		http.Error(responseWriter, "invalid request body", http.StatusBadRequest)
+
+		return
+	}
+
+	var payload captureModeRequest
+	if err := json.Unmarshal(body, &payload); err != nil || payload.Mode == "" {
+		http.Error(responseWriter, "invalid capture mode", http.StatusBadRequest)
+
+		return
+	}
+
+	snap := s.daemon.snapshot()
+	if !snap.Online {
+		http.Error(responseWriter, errStreamNoDevice.Error(), errorfamily.HTTPStatus(errStreamNoDevice))
+
+		return
+	}
+
+	mode, ok := captureModeForModel(snap.Model, payload.Mode)
+	if !ok {
+		http.Error(responseWriter, "unsupported capture mode", http.StatusBadRequest)
+
+		return
+	}
+
+	s.daemon.setCaptureMode(mode.ID)
+	response := captureModeResponse{
+		Mode:          mode.ID,
+		Label:         mode.Label,
+		ZoomAvailable: mode.ZoomAvailable,
+	}
+	if err := writeJSON(responseWriter, http.StatusOK, response); err != nil {
+		slog.Debug("capture-mode response write failed", "err", err)
+	}
+}
+
 // handleStatusPanel renders the panel as plain HTML for testing and direct access.
 // The DataStar UI receives panel updates via SSE patches from handleEvents and
 // action handlers.
@@ -228,9 +291,13 @@ func (s *webServer) handleEvents(responseWriter http.ResponseWriter, request *ht
 
 	sse := datastar.NewSSE(responseWriter, request)
 
-	// Send initial panel state
+	// Send initial panel and route-section state. The route section is outside
+	// #status-panel so it needs its own morph target for out-of-band updates.
 	status := s.getWebStatusWithPTZ(request.Context())
 	if err := sse.PatchElementTempl(statusPanel(status)); err != nil { //nolint:contextcheck
+		return
+	}
+	if err := sse.PatchElementTempl(routeSection(status)); err != nil { //nolint:contextcheck
 		return
 	}
 
@@ -248,6 +315,9 @@ func (s *webServer) handleEvents(responseWriter http.ResponseWriter, request *ht
 
 			refreshed := s.getWebStatusWithPTZ(request.Context())
 			if err := sse.PatchElementTempl(statusPanel(refreshed)); err != nil { //nolint:contextcheck
+				return
+			}
+			if err := sse.PatchElementTempl(routeSection(refreshed)); err != nil { //nolint:contextcheck
 				return
 			}
 		}
@@ -395,11 +465,8 @@ func (s *webServer) handlePTZ(responseWriter http.ResponseWriter, request *http.
 	}
 }
 
-// presetAction builds a handler for the preset commands that address a
-// preset by name path segment (save additionally validates the name, see
-// handlePresetSave): it rejects an empty name, dispatches
-// `preset <verb> <name>` through the command path, and patches the panel
-// with the outcome.
+// presetAction builds a handler for a preset addressed by its complete path
+// segment, preserving spaces in names while using the command's normal lock.
 func (s *webServer) presetAction(verb string) http.HandlerFunc {
 	return func(responseWriter http.ResponseWriter, request *http.Request) {
 		name := request.PathValue("name")
@@ -409,7 +476,7 @@ func (s *webServer) presetAction(verb string) http.HandlerFunc {
 			return
 		}
 
-		s.patchPresetResult(responseWriter, request, cmdPreset+" "+verb+" "+name)
+		s.patchNamedPresetResult(responseWriter, request, verb, name)
 	}
 }
 
@@ -417,7 +484,23 @@ func (s *webServer) presetAction(verb string) http.HandlerFunc {
 // command, refresh the panel status, and morph the panel with the outcome.
 func (s *webServer) patchPresetResult(responseWriter http.ResponseWriter, request *http.Request, command string) {
 	result := s.daemon.handleCommand(request.Context(), command)
+	s.patchPresetCommandResult(responseWriter, request, result)
+}
 
+func (s *webServer) patchNamedPresetResult(
+	responseWriter http.ResponseWriter,
+	request *http.Request,
+	verb, name string,
+) {
+	result := s.daemon.handlePresetWithLock(request.Context(), []string{cmdPreset, verb, name})
+	s.patchPresetCommandResult(responseWriter, request, result)
+}
+
+func (s *webServer) patchPresetCommandResult(
+	responseWriter http.ResponseWriter,
+	request *http.Request,
+	result CommandResult,
+) {
 	status := s.getWebStatusWithPTZ(request.Context())
 	applyResultToStatus(result, &status, result.String(), toastTypeSuccess)
 
@@ -435,7 +518,7 @@ func (s *webServer) handlePresetSave(responseWriter http.ResponseWriter, request
 		return
 	}
 
-	s.patchPresetResult(responseWriter, request, cmdPreset+" "+presetSave+" "+name)
+	s.patchNamedPresetResult(responseWriter, request, presetSave, name)
 }
 
 // handlePresetPull implements POST /api/preset/pull — the web surface for
@@ -446,6 +529,126 @@ func (s *webServer) handlePresetPull(responseWriter http.ResponseWriter, request
 	s.patchPresetResult(responseWriter, request, cmdPreset+" "+presetPull)
 }
 
+// --- "Modo recorrido" (route record/save/play) web surface ---
+
+func (s *webServer) handleRouteRecordStart(responseWriter http.ResponseWriter, request *http.Request) {
+	result := s.daemon.handleCommand(request.Context(), cmdRoute+" "+routeRecord+" "+routeRecordStart)
+	s.patchRouteCommandResult(responseWriter, request, result)
+}
+
+func (s *webServer) handleRouteRecordStop(responseWriter http.ResponseWriter, request *http.Request) {
+	result := s.daemon.handleCommand(request.Context(), cmdRoute+" "+routeRecord+" "+routeRecordStop)
+	s.patchRouteCommandResult(responseWriter, request, result)
+}
+
+func (s *webServer) handleRouteRecordDiscard(responseWriter http.ResponseWriter, request *http.Request) {
+	result := s.daemon.handleCommand(request.Context(), cmdRoute+" "+routeRecord+" "+routeRecordDiscard)
+	s.patchRouteCommandResult(responseWriter, request, result)
+}
+
+func (s *webServer) handleRouteSaveWeb(responseWriter http.ResponseWriter, request *http.Request) {
+	name := request.PathValue("name")
+	if name == "" {
+		http.Error(responseWriter, "missing route name", http.StatusBadRequest)
+
+		return
+	}
+
+	s.patchRouteCommandResult(responseWriter, request, s.daemon.handleRouteSave(name))
+}
+
+func (s *webServer) handleRouteDeleteWeb(responseWriter http.ResponseWriter, request *http.Request) {
+	name := request.PathValue("name")
+	if name == "" {
+		http.Error(responseWriter, "missing route name", http.StatusBadRequest)
+
+		return
+	}
+
+	s.patchRouteCommandResult(responseWriter, request, s.daemon.handleRouteDelete(name))
+}
+
+// patchRouteCommandResult refreshes both the route controls (outside the
+// status-panel morph target) and the status panel/toast after each route action.
+func (s *webServer) patchRouteCommandResult(
+	responseWriter http.ResponseWriter,
+	request *http.Request,
+	result CommandResult,
+) {
+	status := s.getWebStatusWithPTZ(request.Context())
+	applyResultToStatus(result, &status, result.String(), toastTypeSuccess)
+
+	sse := datastar.NewSSE(responseWriter, request)
+	if err := sse.PatchElementTempl(routeSection(status)); err != nil {
+		slog.Debug("route section patch failed", "err", err)
+	}
+	s.patchPanel(sse, status)
+}
+
+// routePlayRequest is the JSON body for POST /api/route/play/{name}: the
+// loop/ping-pong choice the client already confirmed with the user before
+// sending the request.
+type routePlayRequest struct {
+	Loop     bool `json:"loop"`
+	PingPong bool `json:"pingpong"`
+}
+
+func (s *webServer) handleRoutePlayWeb(responseWriter http.ResponseWriter, request *http.Request) {
+	name := request.PathValue("name")
+	if name == "" {
+		http.Error(responseWriter, "missing route name", http.StatusBadRequest)
+
+		return
+	}
+
+	request.Body = http.MaxBytesReader(responseWriter, request.Body, maxBodyBytes)
+
+	body, readErr := io.ReadAll(request.Body)
+	if readErr != nil {
+		http.Error(responseWriter, "invalid request body", http.StatusBadRequest)
+
+		return
+	}
+
+	var payload routePlayRequest
+
+	if len(body) > 0 {
+		if err := json.Unmarshal(body, &payload); err != nil {
+			http.Error(responseWriter, "invalid route play options", http.StatusBadRequest)
+
+			return
+		}
+	}
+
+	query := request.URL.Query()
+	for _, option := range []struct {
+		name   string
+		target *bool
+	}{
+		{name: "loop", target: &payload.Loop},
+		{name: "pingpong", target: &payload.PingPong},
+	} {
+		if raw := query.Get(option.name); raw != "" {
+			value, err := strconv.ParseBool(raw)
+			if err != nil {
+				http.Error(responseWriter, "invalid route play options", http.StatusBadRequest)
+
+				return
+			}
+			*option.target = value
+		}
+	}
+
+	opts := routePlayOptions{Loop: payload.Loop, PingPong: payload.PingPong}
+	result := s.daemon.handleRoutePlay(request.Context(), name, opts)
+	s.patchRouteCommandResult(responseWriter, request, result)
+}
+
+func (s *webServer) handleRouteStopWeb(responseWriter http.ResponseWriter, request *http.Request) {
+	result := s.daemon.handleRouteStop()
+	s.patchRouteCommandResult(responseWriter, request, result)
+}
+
 func newWebMux(server *webServer) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.Handle("GET /static/", cachingFS{handler: http.FileServer(http.FS(staticFS))})
@@ -454,6 +657,7 @@ func newWebMux(server *webServer) *http.ServeMux {
 	mux.HandleFunc("GET /api/events", server.handleEvents)
 	mux.HandleFunc("GET /api/health", server.handleHealth)
 	mux.HandleFunc("GET /api/status", server.handleStatusJSON)
+	mux.HandleFunc("POST /api/capture-mode", server.handleCaptureMode)
 	mux.HandleFunc("POST /api/track", server.action(cmdTrack))
 	mux.HandleFunc("POST /api/"+cmdIdle, server.action(cmdIdle))
 	mux.HandleFunc("POST /api/privacy", server.action(cmdPrivacy))
@@ -470,6 +674,13 @@ func newWebMux(server *webServer) *http.ServeMux {
 	// push moves the physical camera — the UI gates it behind a browser confirm().
 	mux.HandleFunc("POST /api/preset/push/{name}", server.presetAction(presetPush))
 	mux.HandleFunc("POST /api/preset/pull", server.handlePresetPull)
+	mux.HandleFunc("POST /api/route/record/start", server.handleRouteRecordStart)
+	mux.HandleFunc("POST /api/route/record/stop", server.handleRouteRecordStop)
+	mux.HandleFunc("POST /api/route/record/discard", server.handleRouteRecordDiscard)
+	mux.HandleFunc("POST /api/route/save/{name}", server.handleRouteSaveWeb)
+	mux.HandleFunc("POST /api/route/delete/{name}", server.handleRouteDeleteWeb)
+	mux.HandleFunc("POST /api/route/play/{name}", server.handleRoutePlayWeb)
+	mux.HandleFunc("POST /api/route/stop", server.handleRouteStopWeb)
 	mux.HandleFunc("POST /api/ptz/{axis}", server.handlePTZ)
 	mux.HandleFunc("POST /api/speed/{axis}", server.handleSpeed)
 	mux.HandleFunc("POST /api/tracking/{variant}", server.handleTrackingVariant)

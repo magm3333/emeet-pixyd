@@ -37,6 +37,8 @@ type Daemon struct {
 	videoDev  string
 	hidrawDev string
 	model     pixy.Model
+	// captureModeID controls the active FFmpeg/V4L2 stream profile. Guarded by d.mu.
+	captureModeID string
 	// unsupportedHint explains an EMEET device the probe recognized but
 	// cannot control (e.g. a fixed C960); empty when a PIXY-family device
 	// was found. Set only under d.mu via applyProbeResultLocked.
@@ -84,7 +86,68 @@ type Daemon struct {
 	// clients via a thread-safe fan-out hub.
 	broadcaster *Broadcaster
 
+	// routeRecording holds in-progress route capture state ("Modo
+	// recorrido"); nil when not recording. Guarded by d.mu.
+	routeRecording *routeRecordingState
+
+	// routePlaybackStopping stays true between cancellation and completion of
+	// playback cleanup, preventing a second route from racing restoration.
+	routePlaybackStopping bool
+	routeShuttingDown     bool
+
+	// routePlaybackTrackingRestore is the camera mode captured before playback
+	// temporarily disables AI tracking. Guarded by d.mu.
+	routePlaybackTrackingRestore routeTrackingRestore
+	routePlaybackRestoreError    error
+
+	// routePending holds a just-finished recording awaiting a name (the
+	// same two-phase capture-then-name flow as preset save), or nil. Only
+	// one of routeRecording/routePending is non-nil at a time. Guarded by
+	// d.mu.
+	routePending *pixy.Route
+
+	// routePlaybackCancel cancels the in-progress route playback goroutine,
+	// or nil when no route is playing. routePlayingName names it for the
+	// web/CLI status surfaces. Guarded by d.mu.
+	routePlaybackCancel context.CancelFunc
+	routePlayingName    string
+
+	// routePlaybackWG tracks the in-flight playback goroutine so shutdown
+	// (and tests) can wait for its HID/V4L2 writes to finish.
+	routePlaybackWG sync.WaitGroup
+
+	// lifecycleCtx is the daemon's long-lived run context, canceled only on
+	// shutdown. Route playback derives from it instead of from the
+	// triggering HTTP request's context, so a route keeps running after
+	// the request that started it completes, while still stopping cleanly
+	// at shutdown. Set once in Run(); nil for a Daemon built directly in
+	// tests, where routePlaybackContext falls back to context.Background().
+	lifecycleCtx context.Context
+
 	deps Dependencies
+}
+
+// routePlaybackContext returns the base context route playback derives its
+// cancelable context from: the daemon's run-lifetime context when running
+// under Run(), or context.Background() in tests that construct a Daemon
+// directly.
+func (d *Daemon) routePlaybackContext() context.Context {
+	if d.lifecycleCtx != nil {
+		return d.lifecycleCtx
+	}
+
+	return context.Background()
+}
+
+// routeRecordingState is the in-progress capture buffer for route recording.
+// startedAt lines up with the first step's zero wait; lastAt advances after
+// every captured step so each step's WaitMs is the gap since the previous
+// one.
+type routeRecordingState struct {
+	steps           []pixy.RouteStep
+	startedAt       time.Time
+	lastAt          time.Time
+	trackingRestore routeTrackingRestore
 }
 
 const hidCircuitBreakerThreshold = 3
@@ -107,10 +170,11 @@ func NewDaemon(cfg pixy.Config) (*Daemon, error) {
 
 	//nolint:exhaustruct // remaining fields set below or zero-valued
 	d := &Daemon{
-		config:      cfg,
-		state:       pixy.DefaultState(),
-		streamSema:  make(chan struct{}, 1),
-		broadcaster: NewBroadcaster(),
+		config:        cfg,
+		state:         pixy.DefaultState(),
+		captureModeID: defaultCaptureModeID,
+		streamSema:    make(chan struct{}, 1),
+		broadcaster:   NewBroadcaster(),
 	}
 	//nolint:exhaustruct // remaining deps set below (circular ref on d.setTracking etc)
 	d.deps = Dependencies{
@@ -151,21 +215,33 @@ func NewDaemon(cfg pixy.Config) (*Daemon, error) {
 	probe := d.deps.probeDevices(cfg.ExtraProductIDs)
 	d.applyProbeResultLocked(probe)
 	warnInaccessibleDevices(probe)
-	checkExternalDeps(d.deps.commander)
+	checkExternalDeps(d.deps.commander, d.state.AutoMode)
 
 	return d, nil
 }
 
-func checkExternalDeps(commander CommandRunner) {
-	for _, dep := range []struct {
+func checkExternalDeps(commander CommandRunner, autoMode pixy.AutoMode) {
+	deps := []struct {
 		binary string
 		impact string
 	}{
 		{ffmpegBin, "MJPEG streaming unavailable"},
 		{v4l2ctl, "PTZ control unavailable"},
-		{wpctl, "PipeWire source switching unavailable"},
-		{notifySend, "desktop notifications unavailable"},
-	} {
+	}
+	if autoMode.SwitchesSource() {
+		deps = append(deps, struct {
+			binary string
+			impact string
+		}{wpctl, "PipeWire source switching unavailable"})
+	}
+	if !autoMode.IsOff() {
+		deps = append(deps, struct {
+			binary string
+			impact string
+		}{notifySend, "desktop notifications unavailable"})
+	}
+
+	for _, dep := range deps {
 		_, err := commander.LookPath(dep.binary)
 		if err != nil {
 			slog.Warn("optional dependency not found", "binary", dep.binary, "impact", dep.impact)
@@ -209,6 +285,7 @@ func (d *Daemon) Run() {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 
 	ctx, cancel := context.WithCancel(context.Background())
+	d.lifecycleCtx = ctx
 	go func() {
 		listenErr := d.listenUnix(ctx)
 		if listenErr != nil {
@@ -277,10 +354,18 @@ func (d *Daemon) startHTTPServer() *http.Server {
 func (d *Daemon) handleShutdown(cancel context.CancelFunc, httpSrv *http.Server) {
 	sdNotify("STOPPING=1")
 	slog.Info("shutting down")
+	d.hidMu.Lock()
 	d.mu.Lock()
+	d.routeShuttingDown = true
 	d.saveStateOrLog("failed to save state on shutdown")
+	if d.routePlaybackCancel != nil {
+		d.routePlaybackCancel()
+	}
 	d.mu.Unlock()
+	d.hidMu.Unlock()
 	cancel()
+	d.routePlaybackWG.Wait()
+	d.stopRouteRecordingOnShutdown()
 
 	if removeErr := os.Remove(d.config.SocketPath()); removeErr != nil && !errors.Is(removeErr, fs.ErrNotExist) {
 		slog.Debug("stale socket removal on shutdown failed", "err", removeErr)

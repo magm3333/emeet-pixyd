@@ -210,6 +210,15 @@ type statusSnapshot struct {
 	Presets      []string
 	TrackMode    string
 	Speeds       pixy.SpeedValues
+
+	// Route ("Modo recorrido") status, surfaced identically everywhere
+	// the rest of this snapshot is.
+	Routes            []string
+	RecordingRoute    bool
+	RecordingSteps    int
+	PendingRouteSteps int
+	PlayingRoute      string
+	RouteBusy         bool
 }
 
 // snapshot captures the canonical status view under a single read lock.
@@ -232,6 +241,13 @@ func (d *Daemon) snapshot() statusSnapshot {
 		Presets:      d.state.Presets.SortedNames(),
 		TrackMode:    d.state.EffectiveTrackMode().String(),
 		Speeds:       d.state.Speeds,
+
+		Routes:            d.state.Routes.SortedNames(),
+		RecordingRoute:    d.routeRecording != nil,
+		RecordingSteps:    routeRecordingStepCount(d.routeRecording),
+		PendingRouteSteps: routePendingStepCount(d.routePending),
+		PlayingRoute:      d.routePlayingName,
+		RouteBusy:         d.routeBusyLocked(),
 	}
 }
 

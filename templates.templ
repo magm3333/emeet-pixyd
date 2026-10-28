@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/LarsArtmann/emeet-pixyd/internal/pixy"
 )
@@ -75,16 +76,16 @@ templ iconCameraOff() {
 // ---------------------------------------------------------------------------
 templ page(s webStatus) {
 	<!DOCTYPE html>
-	<html lang="en">
+	<html lang="es">
 		<head>
 			<meta charset="UTF-8"/>
-			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
 			<meta name="color-scheme" content="dark"/>
 			<meta name="theme-color" content="#0a0c10"/>
 			<meta name="description" content="Control panel for the EMEET PIXY dual-camera AI webcam"/>
 			<title>EMEET PIXY — { s.Camera }</title>
 			<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235b8def' stroke-width='1.5'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Ccircle cx='12' cy='12' r='4.5'/%3E%3Ccircle cx='12' cy='12' r='1.5' fill='%235b8def' stroke='none'/%3E%3C/svg%3E"/>
-			<link rel="stylesheet" href={ fmt.Sprintf("/static/style.css?v=%s", s.Version) }/>
+			<link rel="stylesheet" href={ fmt.Sprintf("/static/style.css?v=%s&revision=mobile-ptz-1", s.Version) }/>
 		</head>
 		<body data-init="@get('/api/events', {openWhenHidden: true})">
 			<main class="container">
@@ -94,38 +95,85 @@ templ page(s webStatus) {
 						<h1>EMEET PIXY</h1>
 					</div>
 					<div class="header-meta">
+						<button class="lang-toggle" id="lang-toggle" type="button" aria-label="Switch language / Cambiar idioma">
+							<span id="lang-toggle-label">ES</span>
+						</button>
 						<span class="sse-indicator" id="sse-indicator" role="status" aria-label="Live updates connecting"></span>
 						if s.Online {
-							<span class="header-badge header-badge-online">Online</span>
+							<span class="header-badge header-badge-online" data-i18n="status.online">Online</span>
 						} else {
-							<span class="header-badge header-badge-offline">Offline</span>
+							<span class="header-badge header-badge-offline" data-i18n="status.offline">Offline</span>
 						}
 					</div>
 				</header>
 				<div id="offline-banner" class="offline-banner" style="display:none" role="alert">
 					<span class="offline-dot"></span>
-					<span>Connection lost — reconnecting…</span>
+					<span data-i18n="status.reconnecting">Connection lost — reconnecting…</span>
 				</div>
 				<section class="preview-wrap">
 					<div class="preview-container" id="preview">
 						if s.Online && s.Device != "" {
 							<div class="preview-live-dot"></div>
-							<img src="/api/stream" id="preview-img" alt="Live camera feed" aria-label="Live camera preview"/>
+							<img src="/api/stream" id="preview-img" alt="Live camera feed" aria-label="Live camera preview" aria-describedby="preview-mouse-help" draggable="false"/>
+							if s.Controllable {
+								<div class="mobile-ptz-controls" id="mobile-ptz-controls" role="group" aria-label="Controles táctiles PTZ" data-i18n-aria-label="mobile.controlsLabel">
+									<div class="mobile-ptz-dpad" role="group" aria-label="Pan y tilt" data-i18n-aria-label="mobile.dpadLabel">
+										<span class="mobile-ptz-spacer" aria-hidden="true"></span>
+										<button class="mobile-ptz-button" type="button" data-mobile-ptz-axis="tilt" data-mobile-ptz-step="1" aria-label="Inclinar hacia arriba" data-i18n-aria-label="mobile.tiltUp">↑</button>
+										<span class="mobile-ptz-spacer" aria-hidden="true"></span>
+										<button class="mobile-ptz-button" type="button" data-mobile-ptz-axis="pan" data-mobile-ptz-step="-1" aria-label="Mover a la izquierda" data-i18n-aria-label="mobile.panLeft">←</button>
+										<span class="mobile-ptz-center" aria-hidden="true"></span>
+										<button class="mobile-ptz-button" type="button" data-mobile-ptz-axis="pan" data-mobile-ptz-step="1" aria-label="Mover a la derecha" data-i18n-aria-label="mobile.panRight">→</button>
+										<span class="mobile-ptz-spacer" aria-hidden="true"></span>
+										<button class="mobile-ptz-button" type="button" data-mobile-ptz-axis="tilt" data-mobile-ptz-step="-1" aria-label="Inclinar hacia abajo" data-i18n-aria-label="mobile.tiltDown">↓</button>
+										<span class="mobile-ptz-spacer" aria-hidden="true"></span>
+									</div>
+									<div class="mobile-zoom-controls" role="group" aria-label="Zoom" data-i18n-aria-label="mobile.zoomLabel">
+										<button class="mobile-ptz-button mobile-zoom-button" type="button" data-mobile-ptz-axis="zoom" data-mobile-ptz-step="10" aria-label="Acercar" data-i18n-aria-label="mobile.zoomIn">+</button>
+										<button class="mobile-ptz-button mobile-zoom-button" type="button" data-mobile-ptz-axis="zoom" data-mobile-ptz-step="-10" aria-label="Alejar" data-i18n-aria-label="mobile.zoomOut">−</button>
+									</div>
+								</div>
+							}
 							<div id="preview-fallback" class="preview-placeholder" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;flex-direction:column">
 								@iconCameraOff()
-								<div>Camera in use or unavailable</div>
+								<div data-i18n="preview.unavailable">Camera in use or unavailable</div>
 							</div>
 							<button class="preview-snapshot" id="snapshot-btn" type="button" aria-label="Take snapshot">
 								@iconCamera()
-								<span>Snapshot</span>
+								<span data-i18n="preview.snapshot">Snapshot</span>
 							</button>
 						} else {
 							<div class="preview-placeholder">
 								@iconCameraOff()
-								<div>Camera offline</div>
+								<div data-i18n="preview.offline">Camera offline</div>
 							</div>
 						}
 					</div>
+					if s.Online && s.Device != "" {
+						<div class="preview-resolution">
+							<label for="capture-mode-select" data-i18n="preview.resolutionLabel">Resolución y FPS</label>
+							<select id="capture-mode-select" data-current={ s.CaptureMode.ID } aria-describedby="capture-mode-help">
+								for _, mode := range s.CaptureModes {
+									if mode.ID == s.CaptureMode.ID {
+										<option value={ mode.ID } selected>{ mode.Label }</option>
+									} else {
+										<option value={ mode.ID }>{ mode.Label }</option>
+									}
+								}
+							</select>
+							<p id="capture-mode-help" aria-live="polite">
+								if s.CaptureMode.ZoomAvailable {
+									<span data-i18n="preview.zoomAvailable">Zoom digital disponible hasta 1,5×. Cambiar el modo reinicia el stream.</span>
+								} else {
+									<span data-i18n="preview.zoomUnavailable">Zoom digital no disponible en este modo. Cambiar el modo reinicia el stream.</span>
+								}
+							</p>
+						</div>
+						<p class="preview-help" id="preview-mouse-help" data-i18n="preview.mouseHelp">
+							Controles con mouse: arrastrá el video; derecha = pan positivo, izquierda = pan negativo, arriba = tilt positivo y abajo = tilt negativo (aprox. 1° cada 4 px). Doble clic: zoom +10; clic derecho: zoom −10. Los sliders de posición se actualizan con cada movimiento.
+						</p>
+					}
+					@routeSection(s)
 				</section>
 				@statusPanel(s)
 			</main>
@@ -133,7 +181,8 @@ templ page(s webStatus) {
 			<button class="shortcut-fab" id="shortcut-fab" type="button" aria-label="Show keyboard shortcuts">?</button>
 			<div id="toast-container"></div>
 			<script type="module" src="/static/datastar.js"></script>
-			<script src={ fmt.Sprintf("/static/app.js?v=%s", s.Version) }></script>
+			<script src={ fmt.Sprintf("/static/app.js?v=%s&revision=mobile-ptz-1", s.Version) }></script>
+			<script src={ fmt.Sprintf("/static/i18n.js?v=%s&revision=mobile-ptz-1", s.Version) }></script>
 		</body>
 	</html>
 }
@@ -153,9 +202,9 @@ templ statusPanel(s webStatus) {
 			</div>
 		}
 		<div class="mode-grid">
-			@cameraModeCard("track", "/api/track", "Track", "Follows movement", "T", s.Camera == pixy.StateTracking, s.Controllable)
-			@cameraModeCard("idle", "/api/idle", "Idle", "Standing by", "I", s.Camera == pixy.StateIdle, s.Controllable)
-			@cameraModeCard("privacy", "/api/privacy", "Privacy", "Lens covered", "P", s.Camera == pixy.StatePrivacy, s.Controllable)
+			@cameraModeCard("track", "/api/track", "Track", "Follows movement", "T", s.Camera == pixy.StateTracking, s.Controllable && !s.RouteBusy)
+			@cameraModeCard("idle", "/api/idle", "Idle", "Standing by", "I", s.Camera == pixy.StateIdle, s.Controllable && !s.RouteBusy)
+			@cameraModeCard("privacy", "/api/privacy", "Privacy", "Lens covered", "P", s.Camera == pixy.StatePrivacy, s.Controllable && !s.RouteBusy)
 		</div>
 		if s.Controllable && s.Camera == pixy.StateTracking {
 			<div class="segmented tracking-variants" role="group" aria-label="Tracking variant">
@@ -373,7 +422,7 @@ templ ptzRadar(pan int, tilt int, zoom int) {
 templ presetSection(names []string) {
 	<div class="preset-section">
 		<div class="preset-header">
-			<span class="preset-label">Presets</span>
+			<span class="preset-label" data-i18n="presets.title">Presets</span>
 			<div class="preset-header-right">
 				if len(names) > 0 {
 					<span class="preset-count">{ fmt.Sprintf("%d/%d", len(names), pixy.MaxPresets) }</span>
@@ -384,6 +433,7 @@ templ presetSection(names []string) {
 					aria-label="Pull presets from camera hardware slots"
 					title="Pull hardware motor slots into presets (read-only)"
 					data-on:click="@post('/api/preset/pull')"
+					data-i18n="presets.pull"
 				>Pull</button>
 			</div>
 		</div>
@@ -393,21 +443,25 @@ templ presetSection(names []string) {
 				class="preset-input"
 				id="preset-name-input"
 				aria-label="Preset name"
+				aria-describedby="preset-name-help"
 				placeholder="Save current position\u2026"
 				maxlength="32"
 				autocomplete="off"
 				list="preset-names-list"
 				data-bind="presetName"
 				data-on:keydown="evt.key === 'Enter' && document.getElementById('preset-save-btn').click()"
+				data-i18n-placeholder="presets.placeholder"
 			/>
 			<button
 				class="btn btn-small"
 				id="preset-save-btn"
 				type="button"
 				aria-label="Save preset"
-				data-on:click="$presetName.trim() && (@post('/api/preset/save/' + encodeURIComponent($presetName.trim())), $presetName = '')"
+				data-on:click="$presetName.trim() ? (@post('/api/preset/save/' + encodeURIComponent($presetName.trim())), $presetName = '') : window.__showToast(window.__i18n('presets.emptyNameError'), 'error')"
+				data-i18n="presets.save"
 			>Save</button>
 		</div>
+		<p class="preset-hint" id="preset-name-help" data-i18n="presets.hint">Ingresá un nombre para guardar la posición actual; podés usar espacios.</p>
 		if len(names) > 0 {
 			<datalist id="preset-names-list">
 				for _, name := range names {
@@ -427,23 +481,114 @@ templ presetChip(name string) {
 	<div class="preset-chip">
 		<button
 			class="preset-chip-load"
-			data-on:click={ fmt.Sprintf("@post('/api/preset/load/%s')", name) }
+			data-on:click={ fmt.Sprintf("@post('/api/preset/load/' + encodeURIComponent(%s))", strconv.Quote(name)) }
 			aria-label={ fmt.Sprintf("Load preset %s", name) }
 		>
 			{ name }
 		</button>
 		<button
 			class="preset-chip-push"
-			data-on:click={ fmt.Sprintf("confirm('Push preset %q to the camera? The camera will physically move.') && @post('/api/preset/push/%s')", name, name) }
-			aria-label={ fmt.Sprintf("Push preset %s to camera hardware slot", name) }
-			title="Push to camera hardware slot (moves the camera)"
+			data-on:click={ fmt.Sprintf("@post('/api/preset/push/' + encodeURIComponent(%s))", strconv.Quote(name)) }
+			aria-label={ fmt.Sprintf("Apply preset %s to camera immediately", name) }
+			title="Apply immediately: moves the camera and attempts to write its hardware preset slot"
 		>
 			@iconPush()
 		</button>
 		<button
 			class="preset-chip-delete"
-			data-on:click={ fmt.Sprintf("@post('/api/preset/delete/%s')", name) }
+			data-on:click={ fmt.Sprintf("@post('/api/preset/delete/' + encodeURIComponent(%s))", strconv.Quote(name)) }
 			aria-label={ fmt.Sprintf("Delete preset %s", name) }
+		>
+			&times;
+		</button>
+	</div>
+}
+
+// ---------------------------------------------------------------------------
+// Route Section ("Modo recorrido") — record/save/play motion routes.
+// Route controls use DataStar actions so every action returns a server-rendered
+// route section patch. Loop and ping-pong are selectable in the UI.
+// ---------------------------------------------------------------------------
+templ routeSection(s webStatus) {
+	<div class="route-section" id="route-section">
+		<div class="route-header">
+			<span class="route-label" data-i18n="route.title">Modo recorrido</span>
+			if len(s.Routes) > 0 {
+				<span class="preset-count">{ fmt.Sprintf("%d/%d", len(s.Routes), pixy.MaxRoutes) }</span>
+			}
+		</div>
+		if s.PlayingRoute != "" {
+			<div class="route-status route-status-playing" id="route-status-playing">
+				<span class="route-live-dot"></span>
+				<span data-i18n="route.playingLabel">Reproduciendo</span>:
+				<strong>{ s.PlayingRoute }</strong>
+				<button class="btn btn-small" id="route-stop-btn" type="button" data-on:click="@post('/api/route/stop')" data-i18n="route.stop">Detener</button>
+			</div>
+		} else if s.RecordingRoute {
+			<div class="route-status route-status-recording" id="route-status-recording">
+				<span class="route-rec-dot"></span>
+				<span data-i18n="route.recordingLabel">Grabando</span>
+				<span class="badge-mini" id="route-recording-count">{ fmt.Sprintf("%d", s.RecordingSteps) }</span>
+				<button class="btn btn-small" id="route-record-stop-btn" type="button" data-on:click="@post('/api/route/record/stop')" data-i18n="route.stopRecording">Detener grabación</button>
+			</div>
+		} else if s.PendingRouteSteps > 0 {
+			<div class="route-save-row">
+				<input
+					type="text"
+					class="preset-input"
+					id="route-name-input"
+					aria-label="Route name"
+					maxlength="32"
+					autocomplete="off"
+					data-on:keydown="evt.key === 'Enter' && document.getElementById('route-save-btn').click()"
+					data-i18n-placeholder="route.namePlaceholder"
+					placeholder="Nombre del recorrido…"
+				/>
+				<button class="btn btn-small" id="route-save-btn" type="button" data-on:click="document.getElementById('route-name-input').value.trim() ? (@post('/api/route/save/' + encodeURIComponent(document.getElementById('route-name-input').value.trim()))) : window.__showToast(window.__i18n('route.nameRequired'), 'error')" data-i18n="route.save">Guardar</button>
+				<button class="btn btn-small btn-ghost" id="route-discard-btn" type="button" data-on:click="@post('/api/route/record/discard')" data-i18n="route.discard">Descartar</button>
+			</div>
+			<p class="preset-hint" id="route-pending-hint">
+				<span id="route-pending-count">{ fmt.Sprintf("%d", s.PendingRouteSteps) }</span>
+				<span data-i18n="route.pendingHint">pasos capturados — asignale un nombre para guardarlo.</span>
+			</p>
+		} else if s.RouteBusy {
+			<p class="route-status route-status-playing" role="status" data-i18n="route.finishing">Finalizando recorrido y restaurando el seguimiento…</p>
+		} else {
+			<button class="btn btn-small" id="route-record-start-btn" type="button" data-on:click="@post('/api/route/record/start')" data-i18n="route.start">Grabar recorrido</button>
+		}
+		if len(s.Routes) > 0 {
+			<div class="route-options" role="group" aria-label="Opciones de reproducción">
+				<label><input id="route-loop" type="checkbox"/> <span data-i18n="route.loop">Repetir</span></label>
+				<label><input id="route-pingpong" type="checkbox"/> <span data-i18n="route.pingPong">Ida y vuelta</span></label>
+			</div>
+			<div class="route-chips">
+				for _, name := range s.Routes {
+					@routeChip(name)
+				}
+			</div>
+		} else {
+			<p class="route-empty" data-i18n="route.empty">Todavía no hay recorridos guardados. Aparecerán aquí.</p>
+		}
+	</div>
+}
+
+templ routeChip(name string) {
+	<div class="preset-chip route-chip">
+		<button
+			class="preset-chip-load route-chip-play"
+			type="button"
+			data-route-name={ name }
+			data-on:click={ fmt.Sprintf("@post('/api/route/play/' + encodeURIComponent(%s) + '?loop=' + document.getElementById('route-loop').checked + '&pingpong=' + document.getElementById('route-pingpong').checked)", strconv.Quote(name)) }
+			aria-label={ fmt.Sprintf("Play route %s", name) }
+		>
+			{ name }
+		</button>
+		<button
+			class="preset-chip-delete route-chip-delete"
+			type="button"
+			data-route-name={ name }
+			data-on:click={ fmt.Sprintf("@post('/api/route/delete/' + encodeURIComponent(%s))", strconv.Quote(name)) }
+			aria-label={ fmt.Sprintf("Delete route %s", name) }
 		>
 			&times;
 		</button>

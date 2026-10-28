@@ -104,3 +104,29 @@ htmlcov/
 # <<< buildflow-managed (.gitignore) <<<
 
 .githooks/
+
+# Docker local configuration, runtime state, and generated platform images.
+docker/.env
+docker/data/
+docker/results/
+
+# Per-user AI-assistant state and scratch prompts. Keep the tracked project
+# AGENTS.md and .crushrc; these patterns only cover local/untracked artifacts.
+.agents/
+.claude/
+.codex/
+.opencode/
+.cursor/
+.continue/
+.windsurf/
+.gemini/
+.amazonq/
+.junie/
+.roo/
+.trae/
+.delegate/
+.aider*
+.crushrc.local
+AGENTS.local.md
+CLAUDE.local.md
+*.prompt.local.md

@@ -88,6 +88,12 @@ func (d *Daemon) schedulePrivacyTrapReassert(ctx context.Context, mode pixy.Came
 		d.hidMu.Lock()
 		defer d.hidMu.Unlock()
 
+		if d.routeBusy() {
+			slog.Debug("privacy trap re-assert skipped during route operation", "mode", mode)
+
+			return
+		}
+
 		// Tracking re-enters via an idle bounce: a tracking write eaten by
 		// the trap transition poisons the mode interface (later tracking
 		// writes stay dropped while parked — even a privacy→track bounce

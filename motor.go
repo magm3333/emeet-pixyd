@@ -124,19 +124,6 @@ func (d *Daemon) reassertSpeedsLocked(
 	return nil
 }
 
-// setMotorPos moves one axis to an absolute position over the official V2
-// SetMotorPos command (head+payload single report, motor-MCU iface). The
-// position unit is assumed to be the same degrees/multiplier we present
-// everywhere else (M27-verify). LOCK CONTRACT: caller holds d.hidMu.
-func (d *Daemon) setMotorPos(ctx context.Context, motor pixy.MotorType, pos float32) error {
-	report := append(
-		pixy.V2SetMotorPos.WithIface(pixy.MotorMCUIface).Bytes(),
-		pixy.MotorSpeedPayload(motor, pos)...,
-	)
-
-	return d.sendV2Set(ctx, "setMotorPos", report)
-}
-
 // setMotorPresetPos saves the CURRENT position into a 1-based hardware slot.
 // LOCK CONTRACT: caller holds d.hidMu.
 func (d *Daemon) setMotorPresetPos(ctx context.Context, slot byte) error {

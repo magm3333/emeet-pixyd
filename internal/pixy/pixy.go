@@ -294,6 +294,9 @@ type State struct {
 	// axis means "no preference": the daemon leaves the firmware default in
 	// effect and does not re-send it before moves.
 	Speeds SpeedValues `json:"speeds,omitzero"`
+
+	// Routes are the persisted named motion routes ("Modo recorrido").
+	Routes RouteMap `json:"routes,omitempty"`
 }
 
 // DefaultState returns the initial daemon state with privacy mode and auto-management enabled.
@@ -308,6 +311,7 @@ func DefaultState() State {
 		Presets:       NewPresetMap(),
 		TrackMode:     "",            // never set — reads back as the default (face)
 		Speeds:        SpeedValues{}, // no speed preference
+		Routes:        NewRouteMap(),
 	}
 }
 

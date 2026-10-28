@@ -23,7 +23,7 @@ func (d *Daemon) handleCallStart(
 
 	log := slog.With("auto_mode", autoMode)
 
-	if autoMode.ActivatesTracking() && (camera == pixy.StatePrivacy || camera == pixy.StateIdle) {
+	if autoMode.ActivatesTracking() && !d.routeBusy() && (camera == pixy.StatePrivacy || camera == pixy.StateIdle) {
 		trackErr := d.deps.setTracking(ctx, pixy.StateTracking)
 		if trackErr != nil {
 			log.Error("failed to activate tracking", "error", trackErr)
@@ -67,7 +67,7 @@ func (d *Daemon) handleCallEnd(ctx context.Context, autoMode pixy.AutoMode) {
 
 	log := slog.With("auto_mode", autoMode)
 
-	if autoMode.ActivatesPrivacy() {
+	if autoMode.ActivatesPrivacy() && !d.routeBusy() {
 		privacyErr := d.deps.setTracking(ctx, pixy.StatePrivacy)
 		if privacyErr != nil {
 			log.Error("failed to enter privacy mode", "error", privacyErr)

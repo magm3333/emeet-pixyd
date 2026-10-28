@@ -76,6 +76,130 @@
   })();
 
   /* -------------------------------------------------------------------- */
+  /*  Mouse PTZ controls on the live preview                               */
+  /* -------------------------------------------------------------------- */
+
+  (function () {
+    var img = document.getElementById("preview-img");
+    if (!img) return;
+
+    var PIXELS_PER_DEGREE = 4;
+    var ZOOM_STEP = 10;
+    var drag = null;
+
+    function sliderValue(axis, fallback) {
+      var slider = document.getElementById("slider-" + axis);
+      return slider ? Number(slider.value) : fallback;
+    }
+
+    function setSlider(axis, value) {
+      var slider = document.getElementById("slider-" + axis);
+      if (!slider) return;
+      var min = Number(slider.min);
+      var max = Number(slider.max);
+      slider.value = String(Math.max(min, Math.min(max, value)));
+      slider.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+
+    // The mobile overlay shares the same DataStar-bound sliders as desktop.
+    // A semantic button click works for touch, mouse, Enter, and Space.
+    document.querySelectorAll("[data-mobile-ptz-axis]").forEach(function (button) {
+      button.addEventListener("click", function (event) {
+        event.preventDefault();
+        var axis = button.getAttribute("data-mobile-ptz-axis");
+        var step = Number(button.getAttribute("data-mobile-ptz-step"));
+        var fallback = axis === "zoom" ? 100 : 0;
+        setSlider(axis, sliderValue(axis, fallback) + step);
+      });
+    });
+
+    img.addEventListener("pointerdown", function (event) {
+      if (event.target.closest(".mobile-ptz-controls")) return;
+      if (event.button !== 0) return;
+      event.preventDefault();
+      drag = {
+        pointerId: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+        pan: sliderValue("pan", 0),
+        tilt: sliderValue("tilt", 0),
+      };
+      img.setPointerCapture(event.pointerId);
+    });
+
+    img.addEventListener("pointermove", function (event) {
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      var dx = Math.round((event.clientX - drag.x) / PIXELS_PER_DEGREE);
+      var dy = Math.round((event.clientY - drag.y) / PIXELS_PER_DEGREE);
+      setSlider("pan", drag.pan + dx);
+      setSlider("tilt", drag.tilt - dy);
+    });
+
+    function endDrag(event) {
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      if (img.hasPointerCapture(event.pointerId)) img.releasePointerCapture(event.pointerId);
+      drag = null;
+    }
+
+    img.addEventListener("pointerup", endDrag);
+    img.addEventListener("pointercancel", endDrag);
+    img.addEventListener("lostpointercapture", function () {
+      drag = null;
+    });
+
+    img.addEventListener("dblclick", function (event) {
+      event.preventDefault();
+      setSlider("zoom", sliderValue("zoom", 100) + ZOOM_STEP);
+    });
+
+    img.addEventListener("contextmenu", function (event) {
+      event.preventDefault();
+      setSlider("zoom", sliderValue("zoom", 100) - ZOOM_STEP);
+    });
+  })();
+
+  /* -------------------------------------------------------------------- */
+  /*  Capture mode selector                                                */
+  /* -------------------------------------------------------------------- */
+
+  (function () {
+    var select = document.getElementById("capture-mode-select");
+    if (!select) return;
+
+    select.addEventListener("change", function () {
+      select.disabled = true;
+      fetch("/api/capture-mode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: select.value }),
+      })
+        .then(function (response) {
+          if (!response.ok) throw new Error("HTTP " + response.status);
+          return response.json();
+        })
+        .then(function (result) {
+          select.dataset.current = result.mode;
+          var zoomHelp = document.getElementById("capture-mode-help");
+          if (zoomHelp) {
+            var key = result.zoomAvailable ? "preview.zoomAvailable" : "preview.zoomUnavailable";
+            zoomHelp.textContent = window.__i18n ? window.__i18n(key) : result.zoomAvailable
+              ? "Zoom digital disponible hasta 1,5×. Cambiar el modo reinicia el stream."
+              : "Zoom digital no disponible en este modo. Cambiar el modo reinicia el stream.";
+          }
+          var img = document.getElementById("preview-img");
+          if (img) img.src = "/api/stream?mode=" + encodeURIComponent(result.mode) + "&ts=" + Date.now();
+        })
+        .catch(function () {
+          select.value = select.dataset.current;
+          showToast("No se pudo cambiar el modo de captura", "error");
+        })
+        .finally(function () {
+          select.disabled = false;
+        });
+    });
+  })();
+
+  /* -------------------------------------------------------------------- */
   /*  Keyboard shortcuts                                                  */
   /* -------------------------------------------------------------------- */
 

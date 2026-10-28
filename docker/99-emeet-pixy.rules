@@ -1,0 +1,4 @@
+# Allow the unprivileged container user (member of the host `video` group) to
+# control supported PIXY-family cameras through HID and V4L2.
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="328f", ATTRS{idProduct}=="00c0|0118", GROUP="plugdev", MODE="0660", TAG+="uaccess"
+SUBSYSTEM=="video4linux", ATTRS{idVendor}=="328f", ATTRS{idProduct}=="00c0|0118", GROUP="video", MODE="0660", TAG+="uaccess"

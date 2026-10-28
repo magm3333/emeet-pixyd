@@ -36,6 +36,16 @@ type webStatus struct {
 	Battery      string // "" when the device does not answer battery queries
 	TrackMode    string // active tracking variant (none/face/halfbody/fullbody)
 	Speeds       pixy.SpeedValues
+	CaptureMode  captureMode
+	CaptureModes []captureMode
+
+	// Route ("Modo recorrido") status for the web panel.
+	Routes            []string
+	RecordingRoute    bool
+	RecordingSteps    int
+	PendingRouteSteps int
+	PlayingRoute      string
+	RouteBusy         bool
 }
 
 // toastType is a branded type for toast notification kinds (success, info, error).

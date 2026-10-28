@@ -106,8 +106,30 @@ func TestCachingFS(t *testing.T) {
 	cfs.ServeHTTP(rec, req)
 
 	cc := rec.Header().Get("Cache-Control")
-	if cc != "public, max-age=604800" {
-		t.Errorf("Cache-Control = %q, want public max-age 7d", cc)
+	if want := staticCacheControl(buildVersion); cc != want {
+		t.Errorf("Cache-Control = %q, want %q", cc, want)
+	}
+}
+
+func TestStaticCacheControl(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		version string
+		want    string
+	}{
+		{version: "dev", want: "no-store"},
+		{version: "1.2.3", want: "public, max-age=604800"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.version, func(t *testing.T) {
+			t.Parallel()
+
+			if got := staticCacheControl(test.version); got != test.want {
+				t.Errorf("staticCacheControl(%q) = %q, want %q", test.version, got, test.want)
+			}
+		})
 	}
 }
 

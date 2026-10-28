@@ -5,6 +5,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -223,11 +224,20 @@ func TestParseV2_HeadEchoMismatch(t *testing.T) {
 	}
 }
 
-func TestPresetPush_SimulatorSequence(t *testing.T) {
+func TestPresetPush_MovesThroughV4L2ThenSavesSlot(t *testing.T) {
 	t.Parallel()
 
 	sim, opt := withPixySimulator()
-	d := newTestDaemon(t, pixy.StateTracking, testVideoDev, testHIDDev, opt)
+	var moves []v4l2Call
+	d := newTestDaemon(
+		t,
+		pixy.StateTracking,
+		testVideoDev,
+		testHIDDev,
+		opt,
+		withNoopParsePTZ(),
+		withCaptureV4L2(&moves),
+	)
 
 	d.mu.Lock()
 	d.state.Presets = pixy.PresetMap{"home": {Pan: 30, Tilt: -10, Zoom: 120}}
@@ -238,27 +248,29 @@ func TestPresetPush_SimulatorSequence(t *testing.T) {
 		t.Fatalf("preset push failed: %s", result.String())
 	}
 
-	if want := "preset pushed: home -> slot 1"; result.String() != want {
+	if want := "preset applied: home; hardware slot 1 write sent"; result.String() != want {
 		t.Errorf("response = %q, want %q", result.String(), want)
 	}
 
-	// Three SetMotorPos reports (pan, tilt, zoom) then SetMotorPresetPos slot 1.
+	// Physical movement uses the known V4L2 controls. HID only writes the
+	// resulting position to the hardware motor slot.
+	wantMoves := []v4l2Call{
+		{dev: testVideoDev, ctrl: "pan_absolute", val: "108000"},
+		{dev: testVideoDev, ctrl: "tilt_absolute", val: "-36000"},
+		{dev: testVideoDev, ctrl: "zoom_absolute", val: "120"},
+	}
+	if !reflect.DeepEqual(moves, wantMoves) {
+		t.Errorf("V4L2 moves = %+v, want %+v", moves, wantMoves)
+	}
+
 	reports := sim.SentReports()
-	if len(reports) != 4 {
-		t.Fatalf("expected 4 V2 reports, got %d", len(reports))
+	if len(reports) != 1 {
+		t.Fatalf("expected one hardware-slot V2 report, got %d", len(reports))
 	}
 
-	wantPosHead := pixy.V2SetMotorPos.WithIface(pixy.MotorMCUIface).Bytes()
 	wantSaveHead := pixy.V2SetMotorPresetPos.WithIface(pixy.MotorMCUIface).Bytes()
-
-	for i, axis := range []byte{byte(pixy.MotorPan), byte(pixy.MotorTilt), byte(pixy.MotorZoom)} {
-		if string(reports[i][:4]) != string(wantPosHead) || reports[i][4] != axis {
-			t.Errorf("report %d = %x, want SetMotorPos for axis %#02x", i, reports[i], axis)
-		}
-	}
-
-	if string(reports[3][:4]) != string(wantSaveHead) || reports[3][4] != 1 {
-		t.Errorf("save report = %x, want SetMotorPresetPos slot 1", reports[3])
+	if string(reports[0][:4]) != string(wantSaveHead) || reports[0][4] != 1 {
+		t.Errorf("save report = %x, want SetMotorPresetPos slot 1", reports[0])
 	}
 }
 

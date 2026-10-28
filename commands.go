@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"strconv"
 	"strings"
 
@@ -89,6 +88,9 @@ func (d *Daemon) handleCommand(ctx context.Context, cmd string) CommandResult {
 	case cmdPreset:
 		result = d.handlePresetWithLock(ctx, parts)
 
+	case cmdRoute:
+		result = d.handleRouteCommand(ctx, parts)
+
 	default:
 		if ptzAxisValid(pixy.Axis(parts[0])) {
 			result = d.handleMutatingCommandWithV4L2Lock(ctx, parts)
@@ -114,11 +116,12 @@ func (d *Daemon) handleMutatingCommandWithV4L2Lock(ctx context.Context, parts []
 }
 
 // handlePresetWithLock routes preset subcommands to the correct lock:
-// save/load need V4L2 I/O (v4l2Mu); delete/list are state-only (no I/O lock);
-// push/pull take hidMu internally (motor-MCU I/O) and never hold v4l2Mu.
+// save/load/push need V4L2 I/O (v4l2Mu); push then nests hidMu in the documented
+// v4l2Mu → hidMu order to write the camera hardware slot. Delete/list are
+// state-only; pull uses hidMu for read-only motor-MCU queries.
 func (d *Daemon) handlePresetWithLock(ctx context.Context, parts []string) CommandResult {
 	needsV4L2 := len(parts) >= minCmdParts &&
-		(parts[1] == presetSave || parts[1] == presetLoad)
+		(parts[1] == presetSave || parts[1] == presetLoad || parts[1] == presetPush)
 
 	if needsV4L2 {
 		d.v4l2Mu.Lock()
@@ -259,6 +262,10 @@ func (d *Daemon) handleTrackingCommand(
 	state pixy.CameraState,
 	label string,
 ) CommandResult {
+	if d.routeBusy() {
+		return errResultMsg(respRouteCameraBusy)
+	}
+
 	err := d.deps.setTracking(ctx, state)
 	if err != nil {
 		return errResult(label+" "+string(state), err)
@@ -583,23 +590,24 @@ func (d *Daemon) handlePresetDelete(name string) CommandResult {
 	return okResult(fmt.Sprintf("preset %q deleted", name))
 }
 
-// handlePresetPush mirrors a named software preset into a hardware motor slot
-// (TODO #141): the daemon moves each axis to the preset position over the
-// official V2 SetMotorPos command, then saves the current position into the
-// slot with SetMotorPresetPos. Slots map deterministically from the preset
-// list order (alphabetical, 1-based), the same order the CLI and web UI
-// present everywhere else.
+// handlePresetPush moves the camera to a named software preset through the
+// verified V4L2 controls, then mirrors the current position into a hardware
+// motor slot with SetMotorPresetPos. Slots map deterministically from the
+// preset list order (alphabetical, 1-based), the same order the CLI and web UI
+// present everywhere else. The wired PIXY silently ignored the assumed V2
+// SetMotorPos payload, so it is not used for physical movement here.
 //
 // This command MOVES THE PHYSICAL CAMERA — it is the one preset operation
 // with a visible hardware side effect. Slot-count discovery and per-slot
 // verification run in the hardware session (plan M27); until then the slot
-// guard is the conservative maxHardwarePresetSlots.
+// guard is the conservative maxHardwarePresetSlots. LOCK CONTRACT: caller
+// holds d.v4l2Mu; the hardware-slot write briefly takes d.hidMu underneath.
 func (d *Daemon) handlePresetPush(ctx context.Context, name string) CommandResult {
 	if err := pixy.ValidatePresetName(name); err != nil {
 		return errResultMsg(err.Error())
 	}
 
-	values, exists := d.presetLookup(name)
+	_, exists := d.presetLookup(name)
 	if !exists {
 		return errResultMsg(respPresetNotFound)
 	}
@@ -624,35 +632,24 @@ func (d *Daemon) handlePresetPush(ctx context.Context, name string) CommandResul
 		)
 	}
 
-	// The whole move+save sequence is one HID operation: hold hidMu so no
-	// tracking/audio command interleaves between the move and the save.
+	// Loading routes the move through the already hardware-verified V4L2 path
+	// and re-asserts configured speeds. The handler's caller holds v4l2Mu.
+	moveResult := d.handlePresetLoad(ctx, name)
+	if moveResult.IsError() {
+		return moveResult
+	}
+
+	// Save the now-current position to the motor MCU. Keep the V2 write under
+	// hidMu, nested below the caller's v4l2Mu.
 	d.hidMu.Lock()
-	defer d.hidMu.Unlock()
-
-	// Wired motor speeds (TODO #138): the push moves every axis over HID —
-	// re-assert configured speeds first, best-effort like the V4L2 paths.
-	if speedErr := d.reassertSpeedsLocked(ctx, pixy.AxisPan, pixy.AxisTilt, pixy.AxisZoom); speedErr != nil {
-		slog.Warn("preset push: speed re-assert failed, moving at firmware default", "error", speedErr)
-	}
-
-	for _, axis := range []struct {
-		motor pixy.MotorType
-		val   int
-	}{
-		{pixy.MotorPan, values.Pan},
-		{pixy.MotorTilt, values.Tilt},
-		{pixy.MotorZoom, values.Zoom},
-	} {
-		if err := d.setMotorPos(ctx, axis.motor, float32(axis.val)); err != nil {
-			return errResult("preset push "+name, err)
-		}
-	}
-
 	if err := d.setMotorPresetPos(ctx, byte(slot)); err != nil {
+		d.hidMu.Unlock()
+
 		return errResult("preset push "+name, err)
 	}
+	d.hidMu.Unlock()
 
-	return okResult(fmt.Sprintf("preset pushed: %s -> slot %d", name, slot))
+	return okResult(fmt.Sprintf("preset applied: %s; hardware slot %d write sent", name, slot))
 }
 
 // presetPullNameFormat is the software preset name for a pulled hardware

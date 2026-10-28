@@ -314,8 +314,9 @@ func TestWeb_PanelShowsPresetsWhenOnline(t *testing.T) {
 
 	assertContains(t, body, "preset-section", "preset section")
 	assertContains(t, body, "preset-chip", "preset chips")
-	assertContains(t, body, "/api/preset/load/home", "load home preset")
-	assertContains(t, body, "/api/preset/delete/wide", "delete wide preset")
+	assertContains(t, body, "/api/preset/load/", "load preset endpoint")
+	assertContains(t, body, "/api/preset/delete/", "delete preset endpoint")
+	assertContains(t, body, "encodeURIComponent", "preset names are URL-encoded")
 	assertContains(t, body, "preset-name-input", "save input")
 	assertContains(t, body, "3/16", "preset count")
 }
@@ -364,31 +365,37 @@ func TestWeb_PresetSaveLoadDelete(t *testing.T) {
 	)
 	srv := newTestWebServer(t, d)
 
-	// Save
-	resp := post(t, srv.URL+"/api/preset/save/testpreset", "application/json", strings.NewReader("{}"))
+	// Save preserves the full path value, including spaces, instead of
+	// splitting the name through the CLI's whitespace-delimited command parser.
+	presetName := "test preset"
+	resp := post(t, srv.URL+"/api/preset/save/test%20preset", "application/json", strings.NewReader("{}"))
 	resp.Body.Close()
 	assertStatusCode(t, resp, http.StatusOK)
 
 	d.mu.RLock()
-	_, exists := d.state.Presets["testpreset"]
+	_, exists := d.state.Presets[presetName]
+	_, truncated := d.state.Presets["test"]
 	d.mu.RUnlock()
 
 	if !exists {
-		t.Fatal("preset not saved in daemon state after POST /api/preset/save")
+		t.Fatalf("preset %q not saved in daemon state after POST /api/preset/save", presetName)
+	}
+	if truncated {
+		t.Fatal("multi-word web preset was truncated at the first space")
 	}
 
 	// Load
-	resp = post(t, srv.URL+"/api/preset/load/testpreset", "application/json", strings.NewReader("{}"))
+	resp = post(t, srv.URL+"/api/preset/load/test%20preset", "application/json", strings.NewReader("{}"))
 	resp.Body.Close()
 	assertStatusCode(t, resp, http.StatusOK)
 
 	// Delete
-	resp = post(t, srv.URL+"/api/preset/delete/testpreset", "application/json", strings.NewReader("{}"))
+	resp = post(t, srv.URL+"/api/preset/delete/test%20preset", "application/json", strings.NewReader("{}"))
 	resp.Body.Close()
 	assertStatusCode(t, resp, http.StatusOK)
 
 	d.mu.RLock()
-	_, exists = d.state.Presets["testpreset"]
+	_, exists = d.state.Presets[presetName]
 	d.mu.RUnlock()
 
 	if exists {
