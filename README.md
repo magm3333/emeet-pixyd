@@ -136,8 +136,7 @@ camera's intelligence underneath it.
 | **Modo recorrido**     | Record manual PTZ routes, save named routes, and replay once, looped, or ping-pong             |
 | **Route safety**       | Suspends camera AI tracking during recording/playback and restores the exact previous mode     |
 | **Bilingual UI**       | Persistent Spanish/English selector                                                          |
-| **Phone UI**           | Full-screen preview with touch PTZ and on-video Track/Idle/Privacy mode controls                |
-| **Phone UI**           | Full-screen preview with touch pan/tilt dragging, directional nudge buttons, and zoom controls |
+| **Phone UI**           | Full-screen preview with touch pan/tilt dragging, directional nudges, zoom, and on-video Track/Idle/Privacy controls |
 | **Docker**             | Multi-platform image for x86-64 and 64-bit Raspberry Pi                                       |
 | **Waybar integration** | JSON output for a custom Waybar module                                                           |
 | **Status API**         | `GET /api/status` JSON for Quickshell / DankMaterialShell bar widgets                            |
@@ -220,8 +219,10 @@ emeet-pixy preset pull          # Sweep hardware slots into hw-N presets (read-o
 emeet-pixy preset pull --dry-run # Preview the sweep without storing anything
 emeet-pixy preset list          # List all saved presets
 emeet-pixy route record start   # Start recording manual PTZ moves
-emeet-pixy route record stop   # Stop, then save with: route save <name>
+emeet-pixy route record stop    # Stop a recording and keep its captured steps pending
 emeet-pixy route record discard # Discard an in-progress/pending recording
+emeet-pixy route save <name>    # Save the pending recording under a name
+emeet-pixy route delete <name>  # Delete a saved route
 emeet-pixy route play <name> [loop] [pingpong]
 emeet-pixy route stop           # Stop playback and restore camera mode
 emeet-pixy route list           # List saved routes
@@ -282,7 +283,6 @@ The daemon serves a dark-themed control panel at `http://127.0.0.1:8090` with:
 - Loop and ping-pong playback options; camera mode controls are locked while a route is active
 - Persistent ES/EN language selector and selectable capture resolution/FPS
 - On narrow/coarse-pointer screens, a video-only layout with touch pan/tilt/zoom and camera-mode controls
-- On narrow/coarse-pointer screens, a video-only layout with touch pan/tilt/zoom controls
 - Camera model badge and battery row (shown when the device reports it)
 - Gesture control and auto-mode toggles
 - Toast notifications for state changes
