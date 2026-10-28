@@ -30,6 +30,10 @@
     mobile: {
       controlsLabel: { es: 'Controles táctiles PTZ', en: 'Touch PTZ controls' },
       dpadLabel: { es: 'Pan y tilt', en: 'Pan and tilt' },
+      modeGroup: { es: 'Modo de cámara', en: 'Camera mode' },
+      modeTrack: { es: 'Seguir', en: 'Track' },
+      modeIdle: { es: 'Pausa', en: 'Idle' },
+      modePrivacy: { es: 'Privacidad', en: 'Privacy' },
       panLeft: { es: 'Mover a la izquierda', en: 'Pan left' },
       panRight: { es: 'Mover a la derecha', en: 'Pan right' },
       tiltUp: { es: 'Inclinar hacia arriba', en: 'Tilt up' },

@@ -136,7 +136,7 @@ camera's intelligence underneath it.
 | **Modo recorrido**     | Record manual PTZ routes, save named routes, and replay once, looped, or ping-pong             |
 | **Route safety**       | Suspends camera AI tracking during recording/playback and restores the exact previous mode     |
 | **Bilingual UI**       | Persistent Spanish/English selector                                                          |
-| **Phone UI**           | Full-screen preview with touch pan/tilt drag, directional nudges, and zoom buttons            |
+| **Phone UI**           | Full-screen preview with touch PTZ and on-video Track/Idle/Privacy mode controls                |
 | **Phone UI**           | Full-screen preview with touch pan/tilt dragging, directional nudge buttons, and zoom controls |
 | **Docker**             | Multi-platform image for x86-64 and 64-bit Raspberry Pi                                       |
 | **Waybar integration** | JSON output for a custom Waybar module                                                           |
@@ -281,7 +281,7 @@ The daemon serves a dark-themed control panel at `http://127.0.0.1:8090` with:
 - Recording/playback automatically changes Track to Idle while the route runs and restores the exact prior Track/Idle/Privacy mode when it ends or is stopped
 - Loop and ping-pong playback options; camera mode controls are locked while a route is active
 - Persistent ES/EN language selector and selectable capture resolution/FPS
-- On narrow/coarse-pointer screens, a video-only layout with touch pan/tilt/zoom controls
+- On narrow/coarse-pointer screens, a video-only layout with touch pan/tilt/zoom and camera-mode controls
 - On narrow/coarse-pointer screens, a video-only layout with touch pan/tilt/zoom controls
 - Camera model badge and battery row (shown when the device reports it)
 - Gesture control and auto-mode toggles

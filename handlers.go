@@ -300,6 +300,9 @@ func (s *webServer) handleEvents(responseWriter http.ResponseWriter, request *ht
 	if err := sse.PatchElementTempl(routeSection(status)); err != nil { //nolint:contextcheck
 		return
 	}
+	if err := sse.PatchElementTempl(mobileCameraModeControls(status)); err != nil { //nolint:contextcheck
+		return
+	}
 
 	ch := s.daemon.broadcaster.Subscribe()
 	defer s.daemon.broadcaster.Unsubscribe(ch)
@@ -320,6 +323,9 @@ func (s *webServer) handleEvents(responseWriter http.ResponseWriter, request *ht
 			if err := sse.PatchElementTempl(routeSection(refreshed)); err != nil { //nolint:contextcheck
 				return
 			}
+			if err := sse.PatchElementTempl(mobileCameraModeControls(refreshed)); err != nil { //nolint:contextcheck
+				return
+			}
 		}
 	}
 }
@@ -328,6 +334,9 @@ func (s *webServer) handleEvents(responseWriter http.ResponseWriter, request *ht
 func (s *webServer) patchPanel(sse *datastar.ServerSentEventGenerator, status webStatus) {
 	if err := sse.PatchElementTempl(statusPanel(status)); err != nil {
 		slog.Debug("status panel patch failed", "err", err)
+	}
+	if err := sse.PatchElementTempl(mobileCameraModeControls(status)); err != nil {
+		slog.Debug("mobile camera-mode patch failed", "err", err)
 	}
 
 	sendToastScript(sse, &status)

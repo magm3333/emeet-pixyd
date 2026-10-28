@@ -721,6 +721,8 @@ func TestWeb_RouteRecordStopSaveDeleteFlow(t *testing.T) {
 	startBody := getBody(t, startResp)
 	assertContains(t, startBody, `id="route-status-recording"`, "route start swaps in recording controls")
 	assertContains(t, startBody, "mode-idle active", "camera mode UI shows tracking suspended")
+	assertContains(t, startBody, `id="mobile-camera-modes"`, "mobile camera mode controls are patched during recording")
+	assertContains(t, startBody, `data-i18n="mobile.modeIdle"`, "mobile camera mode reflects the temporary idle state")
 	assertContains(t, startBody, `aria-label="Track" disabled=""`, "tracking control is locked during recording")
 	assertContains(t, startBody, `id="slider-pan"`, "PTZ sliders remain rendered during recording")
 
@@ -735,6 +737,7 @@ func TestWeb_RouteRecordStopSaveDeleteFlow(t *testing.T) {
 	assertContains(t, stopBody, "1 steps", "record stop toast")
 	assertContains(t, stopBody, `id="route-name-input"`, "route stop offers route naming controls")
 	assertContains(t, stopBody, "mode-track active", "camera mode UI shows the prior tracking mode restored")
+	assertContains(t, stopBody, `data-i18n="mobile.modeTrack"`, "mobile camera mode reflects restored tracking")
 	assertNotContains(t, stopBody, `aria-label="Track" disabled=""`, "tracking control unlocks after recording")
 
 	saveResp := post(t, server.URL+"/api/route/save/my%20route", "application/json", nil)
@@ -785,6 +788,7 @@ func TestWeb_RoutePlayWithLoopAndPingPongOptions(t *testing.T) {
 	assertContains(t, playBody, "loop, ping-pong", "play toast mentions loop+ping-pong")
 	assertContains(t, playBody, "mode-idle active", "camera mode UI shows tracking suspended during playback")
 	assertContains(t, playBody, `id="route-stop-btn"`, "playback swaps in the stop control")
+	assertContains(t, playBody, `data-i18n="mobile.modeIdle"`, "mobile camera mode reflects playback suspension")
 
 	time.Sleep(30 * time.Millisecond)
 
@@ -795,6 +799,7 @@ func TestWeb_RoutePlayWithLoopAndPingPongOptions(t *testing.T) {
 	assertContains(t, stopBody, `id="route-record-start-btn"`, "stop playback restores the start control")
 	assertNotContains(t, stopBody, `id="route-stop-btn"`, "stop playback removes the stop control")
 	assertContains(t, stopBody, "mode-track active", "stop playback restores tracking in the panel")
+	assertContains(t, stopBody, `data-i18n="mobile.modeTrack"`, "stop playback restores tracking on mobile")
 	assertNotContains(t, stopBody, `aria-label="Track" disabled=""`, "tracking control unlocks after playback")
 
 	d.routePlaybackWG.Wait()

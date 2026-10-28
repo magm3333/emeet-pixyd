@@ -85,7 +85,7 @@ templ page(s webStatus) {
 			<meta name="description" content="Control panel for the EMEET PIXY dual-camera AI webcam"/>
 			<title>EMEET PIXY — { s.Camera }</title>
 			<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235b8def' stroke-width='1.5'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Ccircle cx='12' cy='12' r='4.5'/%3E%3Ccircle cx='12' cy='12' r='1.5' fill='%235b8def' stroke='none'/%3E%3C/svg%3E"/>
-			<link rel="stylesheet" href={ fmt.Sprintf("/static/style.css?v=%s&revision=mobile-ptz-1", s.Version) }/>
+			<link rel="stylesheet" href={ fmt.Sprintf("/static/style.css?v=%s&revision=mobile-ptz-2", s.Version) }/>
 		</head>
 		<body data-init="@get('/api/events', {openWhenHidden: true})">
 			<main class="container">
@@ -133,6 +133,7 @@ templ page(s webStatus) {
 										<button class="mobile-ptz-button mobile-zoom-button" type="button" data-mobile-ptz-axis="zoom" data-mobile-ptz-step="-10" aria-label="Alejar" data-i18n-aria-label="mobile.zoomOut">−</button>
 									</div>
 								</div>
+								@mobileCameraModeControls(s)
 							}
 							<div id="preview-fallback" class="preview-placeholder" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;flex-direction:column">
 								@iconCameraOff()
@@ -181,10 +182,37 @@ templ page(s webStatus) {
 			<button class="shortcut-fab" id="shortcut-fab" type="button" aria-label="Show keyboard shortcuts">?</button>
 			<div id="toast-container"></div>
 			<script type="module" src="/static/datastar.js"></script>
-			<script src={ fmt.Sprintf("/static/app.js?v=%s&revision=mobile-ptz-1", s.Version) }></script>
-			<script src={ fmt.Sprintf("/static/i18n.js?v=%s&revision=mobile-ptz-1", s.Version) }></script>
+			<script src={ fmt.Sprintf("/static/app.js?v=%s&revision=mobile-ptz-2", s.Version) }></script>
+			<script src={ fmt.Sprintf("/static/i18n.js?v=%s&revision=mobile-ptz-2", s.Version) }></script>
 		</body>
 	</html>
+}
+
+templ mobileCameraModeControls(s webStatus) {
+	<div class="mobile-camera-modes" id="mobile-camera-modes" role="group" aria-label="Modo de cámara" data-i18n-aria-label="mobile.modeGroup">
+		@mobileCameraModeButton("/api/track", "mobile.modeTrack", "Seguir", s.Camera == pixy.StateTracking, s.Controllable && !s.RouteBusy)
+		@mobileCameraModeButton("/api/idle", "mobile.modeIdle", "Pausa", s.Camera == pixy.StateIdle, s.Controllable && !s.RouteBusy)
+		@mobileCameraModeButton("/api/privacy", "mobile.modePrivacy", "Privacidad", s.Camera == pixy.StatePrivacy, s.Controllable && !s.RouteBusy)
+	</div>
+}
+
+templ mobileCameraModeButton(endpoint, key, label string, active, enabled bool) {
+	<button
+		class={ "mobile-mode-button", templ.KV("active", active) }
+		type="button"
+		data-on:click={ fmt.Sprintf("@post('%s')", endpoint) }
+		data-indicator="loading"
+		data-class:btn-loading="$loading"
+		aria-label={ label }
+		aria-pressed={ fmt.Sprintf("%t", active) }
+		data-i18n={ key }
+		data-i18n-aria-label={ key }
+		if !enabled {
+			disabled=""
+		}
+	>
+		{ label }
+	</button>
 }
 
 // ---------------------------------------------------------------------------

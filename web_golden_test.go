@@ -60,6 +60,10 @@ func TestWebPage_PTZMouseControlsAndHelp(t *testing.T) {
 	assertContainsAll(t, page, []string{
 		`id="preview-img"`,
 		`id="mobile-ptz-controls"`,
+		`id="mobile-camera-modes"`,
+		`data-i18n="mobile.modePrivacy"`,
+		`id="mobile-camera-modes"`,
+		`data-i18n="mobile.modePrivacy"`,
 		`data-mobile-ptz-axis="pan"`,
 		`data-mobile-ptz-axis="tilt"`,
 		`data-mobile-ptz-axis="zoom"`,
@@ -78,9 +82,9 @@ func TestWebPage_PTZMouseControlsAndHelp(t *testing.T) {
 		`id="capture-mode-select"`,
 		`value="1080p30" selected`,
 		"Zoom digital disponible hasta 1,5×",
-		`/static/app.js?v=dev&amp;revision=mobile-ptz-1`,
-		`/static/style.css?v=dev&amp;revision=mobile-ptz-1`,
-		`/static/i18n.js?v=dev&amp;revision=mobile-ptz-1`,
+		`/static/app.js?v=dev&amp;revision=mobile-ptz-2`,
+		`/static/style.css?v=dev&amp;revision=mobile-ptz-2`,
+		`/static/i18n.js?v=dev&amp;revision=mobile-ptz-2`,
 	})
 
 	assetResponse := get(t, server.URL+"/static/app.js")

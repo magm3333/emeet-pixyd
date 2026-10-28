@@ -192,7 +192,8 @@ En `http://127.0.0.1:18090/`, comprueba lo siguiente con la cámara conectada:
    durante la ruta, y que no aparecen errores JavaScript en la consola.
 7. Abre la UI desde el navegador del teléfono en la misma LAN: debe mostrar
    solo el video con el pad direccional y zoom. Arrastra sobre el video para
-   pan/tilt y usa las flechas/zoom para ajustes táctiles pequeños.
+   pan/tilt, usa las flechas/zoom para ajustes pequeños y cambia entre
+   Seguir/Pausa/Privacidad desde los botones superpuestos.
 
 El caso de llamadas automáticas requiere configurar además el acceso del
 contenedor a los procesos y al PipeWire del host; el Compose predeterminado usa

@@ -15,7 +15,7 @@ Published image: [`magm3333/emeet-pixy-dual-cam:latest`](https://hub.docker.com/
 
 - Camera PTZ, audio-mode, gesture, and privacy controls through the camera's HID interface.
 - Web UI with live preview, pan/tilt/zoom controls, and persistent Spanish/English language selection.
-- Phone-first full-screen preview with touch pan/tilt dragging, directional controls, and zoom buttons.
+- Phone-first full-screen preview with touch pan/tilt dragging, directional/zoom controls, and an on-video Track/Idle/Privacy selector to exit Privacy without the desktop panel.
 - Record, save, play, loop, ping-pong, and delete PTZ routes.
 - During route recording/playback, camera AI tracking is paused if active and the previous Track/Idle/Privacy state is restored at the end.
 - State and saved routes persist in the mounted data directory/volume.
