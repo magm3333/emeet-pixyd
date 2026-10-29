@@ -159,6 +159,195 @@
   })();
 
   /* -------------------------------------------------------------------- */
+  /*  Optional PTZ coverage globe overlay                                  */
+  /* -------------------------------------------------------------------- */
+
+  (function () {
+    var toggle = document.getElementById("coverage-toggle");
+    var panel = document.getElementById("coverage-visual");
+    var canvas = document.getElementById("coverage-canvas");
+    var readout = document.getElementById("coverage-readout");
+    if (!toggle || !panel || !canvas || !readout) return;
+
+    var context = canvas.getContext("2d");
+    if (!context) return;
+
+    function sliderValue(axis, fallback) {
+      var slider = document.getElementById("slider-" + axis);
+      return slider ? Number(slider.value) : fallback;
+    }
+
+    function localized(key, fallback) {
+      return window.__i18n ? window.__i18n(key) : fallback;
+    }
+
+    function drawGlobe() {
+      var cssSize = 180;
+      var dpr = Math.min(window.devicePixelRatio || 1, 3);
+      var bitmapSize = Math.round(cssSize * dpr);
+      if (canvas.width !== bitmapSize || canvas.height !== bitmapSize) {
+        canvas.width = bitmapSize;
+        canvas.height = bitmapSize;
+      }
+      canvas.style.width = "100%";
+      canvas.style.height = "auto";
+      context.setTransform(dpr, 0, 0, dpr, 0, 0);
+      context.clearRect(0, 0, cssSize, cssSize);
+
+      var ctx = context;
+      var cx = 90;
+      var cy = 87;
+      var radius = 68;
+      var pan = Math.max(-150, Math.min(150, sliderValue("pan", 0)));
+      var tilt = Math.max(-90, Math.min(90, sliderValue("tilt", 0)));
+      var panRad = pan * Math.PI / 180;
+      var tiltRad = tilt * Math.PI / 180;
+      var depth = Math.cos(panRad) * Math.cos(tiltRad);
+
+      // Soft atmospheric halo and the sphere's polished glass surface.
+      ctx.save();
+      ctx.shadowColor = "rgba(69, 219, 221, 0.28)";
+      ctx.shadowBlur = 18;
+      var sphere = ctx.createRadialGradient(cx - 22, cy - 29, 5, cx, cy, radius + 2);
+      sphere.addColorStop(0, "rgba(34, 99, 119, 0.9)");
+      sphere.addColorStop(0.48, "rgba(14, 48, 68, 0.92)");
+      sphere.addColorStop(0.82, "rgba(8, 25, 42, 0.96)");
+      sphere.addColorStop(1, "rgba(5, 14, 27, 0.98)");
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.fillStyle = sphere;
+      ctx.fill();
+      ctx.restore();
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius - 0.5, 0, Math.PI * 2);
+      ctx.clip();
+
+      // A cool translucent wash represents the reachable direction envelope.
+      var coverage = ctx.createLinearGradient(cx - radius, cy, cx + radius, cy);
+      coverage.addColorStop(0, "rgba(43, 219, 199, 0.15)");
+      coverage.addColorStop(0.5, "rgba(75, 225, 218, 0.07)");
+      coverage.addColorStop(1, "rgba(43, 219, 199, 0.16)");
+      ctx.fillStyle = coverage;
+      ctx.fillRect(cx - radius, cy - radius, radius * 2, radius * 2);
+
+      // Meridian and latitude curves give the overlay a true globe reading.
+      ctx.lineWidth = 0.72;
+      ctx.strokeStyle = "rgba(165, 231, 238, 0.28)";
+      [-60, -30, 0, 30, 60].forEach(function (latitude) {
+        var y = cy - radius * Math.sin(latitude * Math.PI / 180);
+        var rx = radius * Math.cos(latitude * Math.PI / 180);
+        var ry = Math.max(3, radius * 0.16 * Math.cos(latitude * Math.PI / 180));
+        ctx.beginPath();
+        ctx.ellipse(cx, y, rx, ry, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      });
+      [-75, -45, 0, 45, 75].forEach(function (longitude) {
+        var radians = longitude * Math.PI / 180;
+        ctx.beginPath();
+        ctx.ellipse(cx + radius * Math.sin(radians), cy, radius * Math.abs(Math.cos(radians)), radius, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      });
+
+      // The 60° amber wedge marks the rear azimuth sector the pan motor cannot reach.
+      var gapStart = -Math.PI / 3;
+      var gapEnd = 0;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, radius, gapStart, gapEnd);
+      ctx.closePath();
+      ctx.fillStyle = "rgba(250, 176, 91, 0.23)";
+      ctx.fill();
+      ctx.save();
+      ctx.font = "600 7px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "rgba(255, 220, 172, 0.94)";
+      ctx.shadowColor = "rgba(14, 12, 8, 0.75)";
+      ctx.shadowBlur = 4;
+      ctx.fillText("60°", cx + radius * 0.55, cy - radius * 0.32);
+      ctx.restore();
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, gapStart, gapEnd);
+      ctx.strokeStyle = "rgba(255, 199, 123, 0.72)";
+      ctx.lineWidth = 1.15;
+      ctx.stroke();
+
+      // Rim lighting and a narrow shadow create a dimensional, glass-like edge.
+      var shade = ctx.createLinearGradient(cx - radius, cy - radius, cx + radius, cy + radius);
+      shade.addColorStop(0, "rgba(222, 255, 255, 0.15)");
+      shade.addColorStop(0.35, "rgba(121, 222, 232, 0.015)");
+      shade.addColorStop(1, "rgba(1, 7, 17, 0.47)");
+      ctx.fillStyle = shade;
+      ctx.fillRect(cx - radius, cy - radius, radius * 2, radius * 2);
+      ctx.restore();
+
+      // Current camera aim; a dashed halo indicates it is on the far hemisphere.
+      var markerX = cx + radius * Math.sin(panRad) * Math.cos(tiltRad);
+      var markerY = cy - radius * Math.sin(tiltRad);
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(markerX, markerY, 6.3, 0, Math.PI * 2);
+      ctx.strokeStyle = depth >= 0 ? "rgba(241, 255, 255, 0.96)" : "rgba(202, 222, 229, 0.66)";
+      ctx.lineWidth = 1.4;
+      ctx.setLineDash(depth >= 0 ? [] : [2, 2]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.arc(markerX, markerY, 2.45, 0, Math.PI * 2);
+      ctx.fillStyle = depth >= 0 ? "#f6ffff" : "#a9c2ce";
+      ctx.shadowColor = "rgba(132, 255, 241, 0.95)";
+      ctx.shadowBlur = 9;
+      ctx.fill();
+      ctx.restore();
+
+      // Subtle rim and specular highlight finish the illustration.
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, -2.22, 0.5);
+      ctx.strokeStyle = "rgba(193, 248, 255, 0.53)";
+      ctx.lineWidth = 1.15;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.ellipse(cx - 15, cy - radius + 5, 25, 5, -0.48, Math.PI, Math.PI * 1.72);
+      ctx.strokeStyle = "rgba(231, 255, 255, 0.42)";
+      ctx.lineWidth = 1.25;
+      ctx.stroke();
+
+      var panLabel = localized("preview.coveragePan", "Pan");
+      var tiltLabel = localized("preview.coverageTilt", "Tilt");
+      var formatAngle = function (value) { return (value > 0 ? "+" : "") + Math.round(value) + "°"; };
+      readout.textContent = panLabel + " " + formatAngle(pan) + " · " + tiltLabel + " " + formatAngle(tilt);
+    }
+
+    function setVisible(visible, persist) {
+      panel.hidden = !visible;
+      toggle.setAttribute("aria-checked", String(visible));
+      if (visible) drawGlobe();
+      if (persist) {
+        try { window.localStorage.setItem("emeet-pixyd-coverage-globe", visible ? "1" : "0"); }
+        catch (_error) { /* Private browsing can disable local storage. */ }
+      }
+    }
+
+    var initiallyVisible = false;
+    try { initiallyVisible = window.localStorage.getItem("emeet-pixyd-coverage-globe") === "1"; }
+    catch (_error) { /* Private browsing can disable local storage. */ }
+    setVisible(initiallyVisible, false);
+
+    toggle.addEventListener("click", function () {
+      setVisible(panel.hidden, true);
+    });
+    document.addEventListener("input", function (event) {
+      if (panel.hidden || !event.target || !/^slider-(pan|tilt)$/.test(event.target.id || "")) return;
+      drawGlobe();
+    });
+    document.addEventListener("locale:changed", function () {
+      if (!panel.hidden) drawGlobe();
+    });
+  })();
+
+  /* -------------------------------------------------------------------- */
   /*  Capture mode selector                                                */
   /* -------------------------------------------------------------------- */
 
@@ -174,8 +363,15 @@
         body: JSON.stringify({ mode: select.value }),
       })
         .then(function (response) {
-          if (!response.ok) throw new Error("HTTP " + response.status);
-          return response.json();
+          return response.json().catch(function () { return {}; }).then(function (result) {
+            if (!response.ok) {
+              var error = new Error("HTTP " + response.status);
+              error.status = response.status;
+              error.result = result;
+              throw error;
+            }
+            return result;
+          });
         })
         .then(function (result) {
           select.dataset.current = result.mode;
@@ -189,14 +385,50 @@
           var img = document.getElementById("preview-img");
           if (img) img.src = "/api/stream?mode=" + encodeURIComponent(result.mode) + "&ts=" + Date.now();
         })
-        .catch(function () {
-          select.value = select.dataset.current;
+        .catch(function (error) {
+          var currentSelect = document.getElementById("capture-mode-select") || select;
+          if (error.status === 409 && error.result && error.result.rtspActive) {
+            currentSelect.value = error.result.mode || currentSelect.dataset.current;
+            currentSelect.dataset.current = error.result.mode || currentSelect.dataset.current;
+            currentSelect.disabled = true;
+            var blockedMessage = window.__i18n
+              ? window.__i18n("preview.pauseRTSPBeforeMode")
+              : "Pausá la emisión RTSP antes de cambiar la resolución.";
+            showToast(blockedMessage, "error");
+            return;
+          }
+          currentSelect.value = currentSelect.dataset.current;
           showToast("No se pudo cambiar el modo de captura", "error");
         })
         .finally(function () {
-          select.disabled = false;
+          var currentSelect = document.getElementById("capture-mode-select") || select;
+          currentSelect.disabled = Boolean(document.getElementById("rtsp-pause-btn"));
         });
     });
+  })();
+
+  /* -------------------------------------------------------------------- */
+  /*  RTSP destination visibility                                          */
+  /* -------------------------------------------------------------------- */
+
+  (function () {
+    var input = document.getElementById("rtsp-url-input");
+    var toggle = document.getElementById("rtsp-url-toggle");
+    if (!input || !toggle) return;
+
+    function refreshLabel() {
+      var key = input.type === "password" ? "rtsp.showURL" : "rtsp.hideURL";
+      var label = window.__i18n ? window.__i18n(key) : input.type === "password" ? "Mostrar" : "Ocultar";
+      toggle.textContent = label;
+      toggle.setAttribute("data-i18n", key);
+      toggle.setAttribute("aria-pressed", String(input.type === "text"));
+    }
+
+    toggle.addEventListener("click", function () {
+      input.type = input.type === "password" ? "text" : "password";
+      refreshLabel();
+    });
+    document.addEventListener("locale:changed", refreshLabel);
   })();
 
   /* -------------------------------------------------------------------- */

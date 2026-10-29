@@ -119,7 +119,20 @@ func (s *webServer) handleStream(
 	responseWriter http.ResponseWriter,
 	request *http.Request,
 ) {
-	ctx := request.Context()
+	s.daemon.mu.RLock()
+	publisher := s.daemon.rtspPublisher
+	rtspStarting := s.daemon.rtspState == rtspStateStarting || s.daemon.rtspState == rtspStateStopping
+	s.daemon.mu.RUnlock()
+	if publisher != nil {
+		s.serveRTSPPreview(responseWriter, request, publisher)
+
+		return
+	}
+	if rtspStarting {
+		http.Error(responseWriter, errStreamInUse.Error(), errorfamily.HTTPStatus(errStreamInUse))
+
+		return
+	}
 
 	select {
 	case s.daemon.streamSema <- struct{}{}:
@@ -129,7 +142,30 @@ func (s *webServer) handleStream(
 		return
 	}
 
-	defer func() { <-s.daemon.streamSema }()
+	ctx, cancel := context.WithCancel(request.Context())
+	session := &activeVideoStream{cancel: cancel, done: make(chan struct{})}
+	s.daemon.mu.Lock()
+	if s.daemon.rtspPublisher != nil || s.daemon.rtspState == rtspStateStarting ||
+		s.daemon.rtspState == rtspStatePublishing || s.daemon.rtspState == rtspStateStopping {
+		s.daemon.mu.Unlock()
+		cancel()
+		<-s.daemon.streamSema
+		http.Error(responseWriter, errStreamInUse.Error(), errorfamily.HTTPStatus(errStreamInUse))
+
+		return
+	}
+	s.daemon.activeVideoStream = session
+	s.daemon.mu.Unlock()
+	defer func() {
+		cancel()
+		s.daemon.mu.Lock()
+		if s.daemon.activeVideoStream == session {
+			s.daemon.activeVideoStream = nil
+		}
+		s.daemon.mu.Unlock()
+		<-s.daemon.streamSema
+		close(session.done)
+	}()
 
 	result := s.setupStream(responseWriter, ctx)
 	if !result.ok {
@@ -145,6 +181,47 @@ func (s *webServer) handleStream(
 	}()
 
 	s.writeFrames(responseWriter, result.reader, result.flusher, ctx)
+}
+
+func (s *webServer) serveRTSPPreview(
+	responseWriter http.ResponseWriter,
+	request *http.Request,
+	publisher *rtspPublisherProcess,
+) {
+	flusher, ok := responseWriter.(http.Flusher)
+	if !ok {
+		http.Error(responseWriter, errStreamNotSupported.Error(), errorfamily.HTTPStatus(errStreamNotSupported))
+
+		return
+	}
+	frames, unsubscribe := publisher.frames.subscribe()
+	defer unsubscribe()
+
+	select {
+	case <-publisher.done:
+		http.Error(responseWriter, errStreamNoFrame.Error(), errorfamily.HTTPStatus(errStreamNoFrame))
+
+		return
+	default:
+	}
+
+	responseWriter.Header().Set("Content-Type", "multipart/x-mixed-replace; boundary=frame")
+	responseWriter.Header().Set("Cache-Control", "no-store")
+	responseWriter.WriteHeader(http.StatusOK)
+	flusher.Flush()
+
+	for {
+		select {
+		case <-request.Context().Done():
+			return
+		case <-publisher.done:
+			return
+		case frame := <-frames:
+			if !writeMJPEGFrame(responseWriter, flusher, frame) {
+				return
+			}
+		}
+	}
 }
 
 type streamResult struct {
@@ -268,27 +345,29 @@ func (s *webServer) writeFrames(
 		s.daemon.lastFrame.Set(frame)
 		recordFrame(ctx)
 
-		_, headerErr := fmt.Fprintf(
-			responseWriter,
-			"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: %d\r\n\r\n",
-			len(frame),
-		)
-		if headerErr != nil {
+		if !writeMJPEGFrame(responseWriter, flusher, frame) {
 			return
 		}
-
-		_, writeErr := responseWriter.Write(frame)
-		if writeErr != nil {
-			return
-		}
-
-		_, sepErr := fmt.Fprint(responseWriter, "\r\n")
-		if sepErr != nil {
-			return
-		}
-
-		flusher.Flush()
 	}
+}
+
+func writeMJPEGFrame(responseWriter io.Writer, flusher http.Flusher, frame []byte) bool {
+	if _, err := fmt.Fprintf(
+		responseWriter,
+		"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: %d\r\n\r\n",
+		len(frame),
+	); err != nil {
+		return false
+	}
+	if _, err := responseWriter.Write(frame); err != nil {
+		return false
+	}
+	if _, err := fmt.Fprint(responseWriter, "\r\n"); err != nil {
+		return false
+	}
+	flusher.Flush()
+
+	return true
 }
 
 // scanForSOI consumes bytes until a JPEG Start-of-Image marker pair is found.

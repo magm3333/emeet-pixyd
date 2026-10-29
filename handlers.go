@@ -101,6 +101,11 @@ func (s *webServer) getWebStatus(ctx context.Context) webStatus {
 		PendingRouteSteps: snap.PendingRouteSteps,
 		PlayingRoute:      snap.PlayingRoute,
 		RouteBusy:         snap.RouteBusy,
+		RTSPState:         snap.RTSPState,
+		RTSPDestination:   snap.RTSPDestination,
+		RTSPSavedURL:      snap.RTSPSavedURL,
+		RTSPError:         snap.RTSPError,
+		RTSPPublishing:    snap.RTSPPublishing,
 	}
 
 	if status.Online {
@@ -224,6 +229,7 @@ type captureModeResponse struct {
 	Mode          string `json:"mode"`
 	Label         string `json:"label"`
 	ZoomAvailable bool   `json:"zoomAvailable"`
+	RTSPActive    bool   `json:"rtspActive,omitempty"`
 }
 
 func (s *webServer) handleCaptureMode(responseWriter http.ResponseWriter, request *http.Request) {
@@ -239,6 +245,23 @@ func (s *webServer) handleCaptureMode(responseWriter http.ResponseWriter, reques
 	var payload captureModeRequest
 	if err := json.Unmarshal(body, &payload); err != nil || payload.Mode == "" {
 		http.Error(responseWriter, "invalid capture mode", http.StatusBadRequest)
+
+		return
+	}
+	s.daemon.rtspMu.Lock()
+	defer s.daemon.rtspMu.Unlock()
+	if s.daemon.rtspActive() {
+		snap := s.daemon.snapshot()
+		mode := s.daemon.currentCaptureMode(snap.Model)
+		response := captureModeResponse{
+			Mode:          mode.ID,
+			Label:         mode.Label,
+			ZoomAvailable: mode.ZoomAvailable,
+			RTSPActive:    true,
+		}
+		if err := writeJSON(responseWriter, http.StatusConflict, response); err != nil {
+			slog.Debug("capture-mode conflict response write failed", "err", err)
+		}
 
 		return
 	}
@@ -266,6 +289,45 @@ func (s *webServer) handleCaptureMode(responseWriter http.ResponseWriter, reques
 	if err := writeJSON(responseWriter, http.StatusOK, response); err != nil {
 		slog.Debug("capture-mode response write failed", "err", err)
 	}
+}
+
+type rtspSignals struct {
+	URL string `json:"rtspUrl"`
+}
+
+func (s *webServer) handleRTSPStart(responseWriter http.ResponseWriter, request *http.Request) {
+	request.Body = http.MaxBytesReader(responseWriter, request.Body, maxBodyBytes)
+
+	var signals rtspSignals
+	if err := datastar.ReadSignals(request, &signals); err != nil {
+		http.Error(responseWriter, "invalid RTSP settings", http.StatusBadRequest)
+
+		return
+	}
+
+	result := s.daemon.startRTSPPublish(signals.URL)
+	status := s.getWebStatusWithPTZ(request.Context())
+	toast, kind := "RTSP publishing started", toastTypeSuccess
+	if result.IsError() {
+		toast, kind = "", toastTypeError
+	}
+	applyResultToStatus(result, &status, toast, kind)
+
+	sse := datastar.NewSSE(responseWriter, request)
+	s.patchPanel(sse, status) //nolint:contextcheck // templ rendering handles context internally
+}
+
+func (s *webServer) handleRTSPStop(responseWriter http.ResponseWriter, request *http.Request) {
+	result := s.daemon.stopRTSPPublish()
+	status := s.getWebStatusWithPTZ(request.Context())
+	toast, kind := "RTSP publishing paused", toastTypeInfo
+	if result.IsError() {
+		toast, kind = "", toastTypeError
+	}
+	applyResultToStatus(result, &status, toast, kind)
+
+	sse := datastar.NewSSE(responseWriter, request)
+	s.patchPanel(sse, status) //nolint:contextcheck // templ rendering handles context internally
 }
 
 // handleStatusPanel renders the panel as plain HTML for testing and direct access.
@@ -297,12 +359,14 @@ func (s *webServer) handleEvents(responseWriter http.ResponseWriter, request *ht
 	if err := sse.PatchElementTempl(statusPanel(status)); err != nil { //nolint:contextcheck
 		return
 	}
+	patchPreviewResolution(sse, status)
 	if err := sse.PatchElementTempl(routeSection(status)); err != nil { //nolint:contextcheck
 		return
 	}
 	if err := sse.PatchElementTempl(mobileCameraModeControls(status)); err != nil { //nolint:contextcheck
 		return
 	}
+	patchRTSPPanel(sse, status)
 
 	ch := s.daemon.broadcaster.Subscribe()
 	defer s.daemon.broadcaster.Unsubscribe(ch)
@@ -320,12 +384,14 @@ func (s *webServer) handleEvents(responseWriter http.ResponseWriter, request *ht
 			if err := sse.PatchElementTempl(statusPanel(refreshed)); err != nil { //nolint:contextcheck
 				return
 			}
+			patchPreviewResolution(sse, refreshed)
 			if err := sse.PatchElementTempl(routeSection(refreshed)); err != nil { //nolint:contextcheck
 				return
 			}
 			if err := sse.PatchElementTempl(mobileCameraModeControls(refreshed)); err != nil { //nolint:contextcheck
 				return
 			}
+			patchRTSPPanel(sse, refreshed)
 		}
 	}
 }
@@ -335,11 +401,28 @@ func (s *webServer) patchPanel(sse *datastar.ServerSentEventGenerator, status we
 	if err := sse.PatchElementTempl(statusPanel(status)); err != nil {
 		slog.Debug("status panel patch failed", "err", err)
 	}
+	patchPreviewResolution(sse, status)
 	if err := sse.PatchElementTempl(mobileCameraModeControls(status)); err != nil {
 		slog.Debug("mobile camera-mode patch failed", "err", err)
 	}
+	patchRTSPPanel(sse, status)
 
 	sendToastScript(sse, &status)
+}
+
+func patchPreviewResolution(sse *datastar.ServerSentEventGenerator, status webStatus) {
+	if err := sse.PatchElementTempl(previewResolution(status)); err != nil {
+		slog.Debug("preview resolution patch failed", "err", err)
+	}
+}
+
+func patchRTSPPanel(sse *datastar.ServerSentEventGenerator, status webStatus) {
+	if err := sse.PatchElementTempl(rtspControls(status)); err != nil {
+		slog.Debug("RTSP controls patch failed", "err", err)
+	}
+	if err := sse.PatchElementTempl(rtspStatus(status)); err != nil {
+		slog.Debug("RTSP status patch failed", "err", err)
+	}
 }
 
 // sendToastScript dispatches a toast via ExecuteScript so the client-side
@@ -667,6 +750,8 @@ func newWebMux(server *webServer) *http.ServeMux {
 	mux.HandleFunc("GET /api/health", server.handleHealth)
 	mux.HandleFunc("GET /api/status", server.handleStatusJSON)
 	mux.HandleFunc("POST /api/capture-mode", server.handleCaptureMode)
+	mux.HandleFunc("POST /api/rtsp/start", server.handleRTSPStart)
+	mux.HandleFunc("POST /api/rtsp/stop", server.handleRTSPStop)
 	mux.HandleFunc("POST /api/track", server.action(cmdTrack))
 	mux.HandleFunc("POST /api/"+cmdIdle, server.action(cmdIdle))
 	mux.HandleFunc("POST /api/privacy", server.action(cmdPrivacy))

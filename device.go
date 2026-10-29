@@ -219,6 +219,11 @@ type statusSnapshot struct {
 	PendingRouteSteps int
 	PlayingRoute      string
 	RouteBusy         bool
+	RTSPState         rtspPublishState
+	RTSPDestination   string
+	RTSPSavedURL      string
+	RTSPError         string
+	RTSPPublishing    bool
 }
 
 // snapshot captures the canonical status view under a single read lock.
@@ -248,6 +253,11 @@ func (d *Daemon) snapshot() statusSnapshot {
 		PendingRouteSteps: routePendingStepCount(d.routePending),
 		PlayingRoute:      d.routePlayingName,
 		RouteBusy:         d.routeBusyLocked(),
+		RTSPState:         d.rtspState,
+		RTSPDestination:   d.rtspDestination,
+		RTSPSavedURL:      d.rtspSavedURL,
+		RTSPError:         d.rtspError,
+		RTSPPublishing:    d.rtspState == rtspStateStarting || d.rtspState == rtspStatePublishing || d.rtspState == rtspStateStopping,
 	}
 }
 

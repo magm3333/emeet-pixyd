@@ -59,6 +59,11 @@ func TestWebPage_PTZMouseControlsAndHelp(t *testing.T) {
 
 	assertContainsAll(t, page, []string{
 		`id="preview-img"`,
+		`id="coverage-toggle"`,
+		`role="switch"`,
+		`id="coverage-visual"`,
+		`id="coverage-canvas"`,
+		`data-i18n="preview.coverageToggle"`,
 		`id="mobile-ptz-controls"`,
 		`id="mobile-camera-modes"`,
 		`data-i18n="mobile.modePrivacy"`,
@@ -82,9 +87,9 @@ func TestWebPage_PTZMouseControlsAndHelp(t *testing.T) {
 		`id="capture-mode-select"`,
 		`value="1080p30" selected`,
 		"Zoom digital disponible hasta 1,5×",
-		`/static/app.js?v=dev&amp;revision=mobile-ptz-2`,
-		`/static/style.css?v=dev&amp;revision=mobile-ptz-2`,
-		`/static/i18n.js?v=dev&amp;revision=mobile-ptz-2`,
+		`/static/app.js?v=dev&amp;revision=rtsp-ui-3`,
+		`/static/style.css?v=dev&amp;revision=rtsp-ui-3`,
+		`/static/i18n.js?v=dev&amp;revision=rtsp-ui-3`,
 	})
 
 	assetResponse := get(t, server.URL+"/static/app.js")
@@ -99,6 +104,8 @@ func TestWebPage_PTZMouseControlsAndHelp(t *testing.T) {
 		`data-mobile-ptz-axis`,
 		`fetch("/api/capture-mode"`,
 		`/api/stream?mode=`,
+		`coveragePan`,
+		`function drawGlobe()`,
 	})
 }
 

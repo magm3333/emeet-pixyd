@@ -1,4 +1,8 @@
-# Docker para EMEET PIXY
+# Docker / Docker para EMEET PIXY
+
+**Language / Idioma:** [English](#english) · [Español](#español)
+
+## Español
 
 Esta carpeta contiene el Dockerfile, Compose y la prueba de build/runtime para
 `linux/amd64` y `linux/arm64` (Raspberry Pi con SO de 64 bits).
@@ -122,6 +126,25 @@ INSTALL_DESKTOP_TOOLS=1 docker compose --env-file docker/.env -f docker/compose.
 El modo `full` además necesita integrar el namespace de procesos y el socket
 PipeWire del host; instalar esos comandos no concede ese acceso automáticamente.
 
+## Emitir por RTSP a MediaMTX
+
+La vista normal de escritorio incluye un panel **Publicación RTSP**. Pega allí
+la URL del publisher, pulsa **Iniciar emisión** y usa **Pausar emisión** para
+cortar el proceso FFmpeg sin cerrar el preview. Una sola captura V4L2 alimenta
+el publisher H.264 por TCP y el preview JPEG simultáneamente. La URL configurada
+se conserva en `docker/data/state.json.rtsp-url` con permisos `0600`; el campo
+la restaura ocultando la contraseña. El estado y los errores muestran el destino
+sin userinfo, y los logs no incluyen la URL completa.
+El perfil de resolución/FPS seleccionado en la interfaz es la fuente del stream
+RTSP. Para cambiarlo, pausa la publicación; el selector se habilita al terminar
+la pausa.
+
+Para MediaMTX en la misma máquina, el alias Compose `nv` se resuelve al gateway
+del host (`RTSP_HOST_IP=host-gateway`). En `raspi4`, `.env.raspi4.example` apunta
+`nv` al host neuralVISION `192.168.195.33`; cambia ese valor si MediaMTX se mueve.
+El destino de prueba de neuralVISION es de la forma
+`rtsp://publisher:<password>@nv:8554/org1/testpixy`.
+
 ## Builds y prueba de ambas arquitecturas
 
 El script construye ambos targets. Para `amd64` carga y ejecuta el contenedor;
@@ -194,7 +217,232 @@ En `http://127.0.0.1:18090/`, comprueba lo siguiente con la cámara conectada:
    solo el video con el pad direccional y zoom. Arrastra sobre el video para
    pan/tilt, usa las flechas/zoom para ajustes pequeños y cambia entre
    Seguir/Pausa/Privacidad desde los botones superpuestos.
+8. Activa la esfera PTZ opcional sobre el video: debe aparecer abajo a la derecha,
+   seguir la orientación pan/tilt y poder ocultarse de nuevo con el switch.
+9. Inicia RTSP y comprueba que el preview continúa. El selector de resolución
+   debe bloquearse durante la emisión y volver a habilitarse al pausarla.
 
 El caso de llamadas automáticas requiere configurar además el acceso del
 contenedor a los procesos y al PipeWire del host; el Compose predeterminado usa
 modo manual por diseño.
+
+---
+
+## English
+
+This directory contains the Dockerfile, Compose configuration, and build/runtime
+checks for `linux/amd64` and `linux/arm64` (64-bit Raspberry Pi OS).
+
+**Contributor:** Mariano García Mattío (`magm`) — [magm3333@gmail.com](mailto:magm3333@gmail.com).
+
+Published multi-platform image:
+[`magm3333/emeet-pixy-dual-cam:latest`](https://hub.docker.com/r/magm3333/emeet-pixy-dual-cam)
+(`linux/amd64`, `linux/arm64`).
+
+### Requirements
+
+- Docker Engine with Docker Compose v2.
+- 64-bit Linux on `amd64` or `arm64`.
+- An EMEET PIXY or PIXY 2K connected to the host. The container needs V4L2
+  video and `hidraw` nodes; the image does not include or emulate the camera's
+  firmware/AI.
+- Permission to access the Docker daemon.
+
+Identify the host device nodes and groups:
+
+```bash
+v4l2-ctl --list-devices
+ls -l /dev/video* /dev/hidraw*
+stat -c '%g %n' /dev/video0 /dev/hidraw4
+```
+
+Copy `docker/.env.example` to `docker/.env` and set the actual device nodes,
+UID, and GIDs. Its `video0`/`hidraw4` and groups 44/46 are examples from the
+test hosts, not universal values. After USB reconnection changes a node, recreate
+the container.
+
+For the Raspberry Pi 4 used in this setup, start from
+`docker/.env.raspi4.example`: the PIXY is `/dev/video0`, `/dev/video1`, and
+`/dev/hidraw0`; `video` has GID 44 and `plugdev` has GID 46. The
+`docker/99-emeet-pixy.rules` udev rule assigns V4L2 to `video` and `hidraw` to
+`plugdev`, mode `0660`.
+
+### Run from source
+
+From the repository root:
+
+```bash
+cp docker/.env.example docker/.env
+# Edit docker/.env: device nodes, UID/GID, and node groups.
+mkdir -p docker/data
+chown "$(id -u):$(id -g)" docker/data
+# Optional: preserve presets/routes from the native daemon.
+python3 docker/scripts/import-state.py \
+  "$HOME/.local/state/emeet-pixyd/state.json" docker/data/state.json --auto off
+docker compose --env-file docker/.env -f docker/compose.yaml build
+docker compose --env-file docker/.env -f docker/compose.yaml up -d
+docker compose --env-file docker/.env -f docker/compose.yaml ps
+docker compose --env-file docker/.env -f docker/compose.yaml logs -f emeet-pixyd
+```
+
+On `raspi4`, use the Pi-specific environment and pull the published image:
+
+```bash
+cp docker/.env.raspi4.example docker/.env
+mkdir -p docker/data
+chown "$(id -u):$(id -g)" docker/data
+docker compose --env-file docker/.env -f docker/compose.yaml pull
+docker compose --env-file docker/.env -f docker/compose.yaml up -d --no-build
+python3 docker/scripts/check-live-route.py --url http://127.0.0.1:18090
+```
+
+The port is bound to loopback on the Pi. To open the UI from another machine,
+create an SSH tunnel and browse to the forwarded port:
+
+```bash
+ssh -L 18090:127.0.0.1:18090 pi@raspi4
+```
+
+The example Compose file publishes the UI on all IPv4 host interfaces at
+`http://<host-IP>:18090/` (on the Pi: `http://raspi4:18090/`). The API has no
+authentication; use it only on a trusted network and restrict it with the host
+firewall. Do not forward it to the public internet.
+
+Compose stores `state.json`, the RTSP destination, and the Unix socket under
+`docker/data/`, which is excluded from Git. The RTSP URL is stored separately in
+`state.json.rtsp-url` with permissions `0600`; the UI restores it in the masked
+field. If importing old state, the script preserves presets/routes and other
+values; `--auto off` changes only the container copy because the container's
+process namespace cannot observe host calls. The native daemon's `state.json` is
+not modified.
+
+Check status and send commands:
+
+```bash
+curl -fsS http://127.0.0.1:18090/api/health
+curl -fsS http://127.0.0.1:18090/api/status
+docker compose --env-file docker/.env -f docker/compose.yaml exec emeet-pixyd emeet-pixyd status
+```
+
+### Docker architecture and limitations
+
+- The multi-stage Dockerfile uses Go and `templ` only in the builder. The final
+  image contains the static daemon binary, FFmpeg, and `v4l2-ctl`.
+- `INSTALL_DESKTOP_TOOLS=1` adds `wpctl` and `notify-send`; installing them does
+  not provide access to the host's PipeWire session or process namespace.
+- The container runs as UID 65532 without added Linux capabilities, with a
+  read-only filesystem and only the configured camera nodes passed through.
+- The host publishes `127.0.0.1:18090` in the default config; the daemon listens
+  on `0.0.0.0:8090` inside the isolated container network.
+- `EMEET_PIXYD_AUTO=off` is the intentional default. The container's private
+  `/proc` namespace cannot see conferencing apps on the host, and `wpctl` cannot
+  change host PipeWire without sharing its user socket. Manual camera/PTZ/routes,
+  HID audio controls, and the web UI are available. Enabling `auto=full` alone
+  does not provide host integration.
+- Docker must run on a Linux host. Docker Desktop/macOS does not expose the USB,
+  V4L2, and `hidraw` access required by the camera.
+
+To include the optional desktop commands in the image:
+
+```bash
+INSTALL_DESKTOP_TOOLS=1 docker compose --env-file docker/.env -f docker/compose.yaml build
+```
+
+Full automation also requires integrating the host process namespace and
+PipeWire socket; installing the optional commands does not grant this access.
+
+### RTSP publishing to MediaMTX
+
+The desktop web UI includes a **RTSP Publishing** panel. Paste the publish URL,
+select **Start publishing**, and use **Pause publishing** to stop FFmpeg without
+closing the preview. One V4L2 capture feeds both the RTSP H.264/TCP publisher and
+the JPEG web preview, so they can run simultaneously. The selected capture
+resolution/FPS is the source profile used by RTSP. Resolution changes are
+available after pausing the publisher.
+
+The destination URL is saved under `docker/data/state.json.rtsp-url` with
+permissions `0600` and restored in the masked field after restart. Status and
+errors show only the sanitized destination, never the URL userinfo; logs do not
+include the complete URL.
+
+For MediaMTX on the same host, Compose maps `nv` to the host gateway
+(`RTSP_HOST_IP=host-gateway`). On `raspi4`, `.env.raspi4.example` maps `nv` to the
+neuralVISION host `192.168.195.33`; change it if MediaMTX moves. A test target has
+this form: `rtsp://publisher:<password>@nv:8554/org1/testpixy`.
+
+### Build and test both architectures
+
+The script builds both architectures. It loads and executes the `amd64` image;
+BuildKit/QEMU runs the `arm64` smoke stage:
+
+```bash
+docker buildx inspect npu-builder --bootstrap
+bash docker/scripts/check-platforms.sh
+```
+
+Select a different builder with `BUILDER=name`. The smoke test executes the
+daemon and required utilities for each target and checks optional desktop tools
+when `INSTALL_DESKTOP_TOOLS=1`. The `arm64` QEMU run checks image format and ABI;
+it is not a substitute for testing the USB controller on a physical Raspberry
+Pi. Before validating a Pi installation, run Compose on the Pi with a connected
+PIXY and follow the visual checklist in the root README.
+
+### Publish to Docker Hub
+
+The image is published as `magm3333`; repository credentials are never stored
+in source control. Log in to Docker Hub on the build host, then run this from the
+repository root after committing the release source:
+
+```bash
+VERSION="$(git rev-parse --short HEAD)"
+docker buildx build \
+  --builder npu-builder \
+  --platform linux/amd64,linux/arm64 \
+  --build-arg VERSION="$VERSION" \
+  --tag magm3333/emeet-pixy-dual-cam:latest \
+  --tag "magm3333/emeet-pixy-dual-cam:$VERSION" \
+  --file docker/Dockerfile \
+  --push .
+docker buildx imagetools inspect magm3333/emeet-pixy-dual-cam:latest
+```
+
+The inspection should list manifests for `linux/amd64` and `linux/arm64`. On an
+installation host, run `docker compose pull` followed by
+`docker compose up -d --no-build` using the same Compose file and `.env`.
+
+### Source tests and image contents
+
+Go tests remain alongside the package because they verify unexported internals.
+`.dockerignore` excludes tests, documentation, the website, Nix files, and local
+agent configuration; the runtime image contains only the binaries and
+dependencies required to run the daemon.
+
+### Visual test checklist
+
+At `http://127.0.0.1:18090/`, with the camera connected, verify:
+
+1. Switch the camera to **Track** and start route recording. The camera should
+   move to **Idle**, mode cards should lock, and the control should become
+   **Stop recording**.
+2. Move pan/tilt/zoom using sliders or the mouse; confirm the step count changes.
+   Stop recording, confirm **Track** is restored, save the route, and check that
+   its chip appears.
+3. Play the route; confirm Idle remains active and **Stop** is available. Stop
+   and verify controls return and Track is restored. Repeat with natural
+   completion, loop, and ping-pong.
+4. Repeat recording/playback from **Idle** and **Privacy**; the exact prior mode
+   should be restored.
+5. Start and discard an empty recording; camera mode should return to its
+   original state.
+6. Confirm preview and PTZ remain responsive during route playback and check the
+   browser console for JavaScript errors.
+7. Open the UI from a phone on the same LAN. Confirm the video-only layout,
+   directional/zoom controls, drag-to-pan/tilt, and overlaid Track/Idle/Privacy
+   buttons.
+8. Enable the optional coverage globe. Confirm it overlays the lower-right of
+   the preview, follows pan/tilt, and can be hidden again.
+9. Start RTSP publishing. Confirm the preview continues, the resolution selector
+   is locked while publishing, and it becomes available after pausing.
+
+Automatic call handling additionally requires host process and PipeWire access;
+the default Compose setup uses manual mode by design.

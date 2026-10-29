@@ -17,6 +17,8 @@ services:
     devices:
       - "${PIXY_VIDEO_DEVICE:-/dev/video0}:${PIXY_VIDEO_CONTAINER_DEVICE:-/dev/video0}:rw"
       - "${PIXY_HIDRAW_DEVICE:-/dev/hidraw4}:${PIXY_HIDRAW_CONTAINER_DEVICE:-/dev/hidraw4}:rw"
+    extra_hosts:
+      - "nv:${RTSP_HOST_IP:-host-gateway}"
     ports:
       - "0.0.0.0:${PIXY_WEB_PORT:-18090}:8090"
     volumes:

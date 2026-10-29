@@ -81,6 +81,10 @@ type Daemon struct {
 	powerCache powerCache
 
 	streamSema chan struct{}
+	// activeVideoStream is the current HTTP-owned V4L2 capture (if any).
+	// RTSP start cancels this session before claiming streamSema for its own
+	// shared capture so the camera is never opened twice.
+	activeVideoStream *activeVideoStream
 
 	// broadcaster distributes state-change events to all connected SSE
 	// clients via a thread-safe fan-out hub.
@@ -116,6 +120,16 @@ type Daemon struct {
 	// (and tests) can wait for its HID/V4L2 writes to finish.
 	routePlaybackWG sync.WaitGroup
 
+	// rtspMu serializes publication start/stop/exit transitions. The current
+	// publication state is surfaced under d.mu; the URL credentials are never
+	// stored in Daemon state or exposed through status surfaces.
+	rtspMu          sync.Mutex
+	rtspPublisher   *rtspPublisherProcess
+	rtspState       rtspPublishState
+	rtspDestination string
+	rtspSavedURL    string
+	rtspError       string
+
 	// lifecycleCtx is the daemon's long-lived run context, canceled only on
 	// shutdown. Route playback derives from it instead of from the
 	// triggering HTTP request's context, so a route keeps running after
@@ -150,6 +164,11 @@ type routeRecordingState struct {
 	trackingRestore routeTrackingRestore
 }
 
+type activeVideoStream struct {
+	cancel context.CancelFunc
+	done   chan struct{}
+}
+
 const hidCircuitBreakerThreshold = 3
 
 const (
@@ -173,6 +192,7 @@ func NewDaemon(cfg pixy.Config) (*Daemon, error) {
 		config:        cfg,
 		state:         pixy.DefaultState(),
 		captureModeID: defaultCaptureModeID,
+		rtspState:     rtspStateStopped,
 		streamSema:    make(chan struct{}, 1),
 		broadcaster:   NewBroadcaster(),
 	}
@@ -196,6 +216,7 @@ func NewDaemon(cfg pixy.Config) (*Daemon, error) {
 	// only on first run (no valid state file present). This way EMEET_PIXYD_AUTO
 	// and EMEET_PIXYD_DEFAULT_AUDIO seed initial state, then the daemon takes over.
 	d.persistedIntent.Store(d.loadState())
+	d.rtspSavedURL = d.loadRTSPURL()
 
 	if !d.persistedIntent.Load() {
 		d.state.AutoMode = cfg.AutoMode
@@ -365,6 +386,7 @@ func (d *Daemon) handleShutdown(cancel context.CancelFunc, httpSrv *http.Server)
 	d.hidMu.Unlock()
 	cancel()
 	d.routePlaybackWG.Wait()
+	d.stopRTSPOnShutdown()
 	d.stopRouteRecordingOnShutdown()
 
 	if removeErr := os.Remove(d.config.SocketPath()); removeErr != nil && !errors.Is(removeErr, fs.ErrNotExist) {

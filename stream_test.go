@@ -3,10 +3,14 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -90,6 +94,61 @@ func TestHandleStream_SemaphoreFull(t *testing.T) {
 	defer resp.Body.Close()
 
 	assertStatusCode(t, resp, http.StatusServiceUnavailable)
+}
+
+func TestHandleStream_UsesSharedRTSPFrames(t *testing.T) {
+	t.Parallel()
+
+	d, _, server := newStreamDaemon(t)
+	publisher := &rtspPublisherProcess{
+		done:   make(chan struct{}),
+		frames: newRTSPFrameFeed(),
+	}
+	d.mu.Lock()
+	d.rtspPublisher = publisher
+	d.rtspState = rtspStatePublishing
+	d.mu.Unlock()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL+"/api/stream", nil)
+	if err != nil {
+		t.Fatalf("create stream request: %v", err)
+	}
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("request shared RTSP preview: %v", err)
+	}
+	defer response.Body.Close()
+	assertStatusCode(t, response, http.StatusOK)
+	if got := response.Header.Get("Content-Type"); !strings.HasPrefix(got, "multipart/x-mixed-replace") {
+		t.Fatalf("Content-Type = %q, want MJPEG multipart", got)
+	}
+
+	deadline := time.Now().Add(time.Second)
+	for {
+		publisher.frames.mu.Lock()
+		subscribers := len(publisher.frames.subscribers)
+		publisher.frames.mu.Unlock()
+		if subscribers > 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("preview did not subscribe to the shared RTSP frame feed")
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	want := []byte{0xff, 0xd8, 0x01, 0xff, 0xd9}
+	publisher.frames.publish(want)
+	got, readErr := bufio.NewReader(response.Body).ReadBytes(jpegEOI)
+	if readErr != nil && readErr != io.EOF {
+		t.Fatalf("read shared preview frame: %v", readErr)
+	}
+	if !bytes.Contains(got, want) {
+		t.Fatalf("preview body %v does not contain shared JPEG frame %v", got, want)
+	}
+	cancel()
 }
 
 func TestHandleStream_NoDevice(t *testing.T) {

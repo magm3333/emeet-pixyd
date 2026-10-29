@@ -20,6 +20,12 @@
       resolutionLabel: { es: 'Resolución y FPS', en: 'Resolution and FPS' },
       zoomAvailable: { es: 'Zoom digital disponible hasta 1,5×. Cambiar el modo reinicia el stream.', en: 'Digital zoom available up to 1.5×. Changing mode restarts the stream.' },
       zoomUnavailable: { es: 'Zoom digital no disponible en este modo. Cambiar el modo reinicia el stream.', en: 'Digital zoom not available in this mode. Changing mode restarts the stream.' },
+      pauseRTSPBeforeMode: { es: 'Pausá la emisión RTSP antes de cambiar la resolución.', en: 'Pause RTSP publishing before changing resolution.' },
+      coverageToggle: { es: 'Esfera de cobertura', en: 'Coverage globe' },
+      coverageDescription: { es: 'Globo orientativo: la cuña ámbar representa el sector sin alcance horizontal y el punto muestra la orientación actual. No representa el campo visual del lente.', en: 'Illustrative globe: the amber wedge is the unreachable horizontal sector and the dot shows the current aim. It does not represent the lens field of view.' },
+      coverageRange: { es: 'Alcance PTZ · 300° × 180°', en: 'PTZ envelope · 300° × 180°' },
+      coveragePan: { es: 'Pan', en: 'Pan' },
+      coverageTilt: { es: 'Inclinación', en: 'Tilt' },
       mouseHelp: {
         es: 'Controles con mouse: arrastrá el video; derecha = pan positivo, izquierda = pan negativo, arriba = tilt positivo y abajo = tilt negativo (aprox. 1° cada 4 px). Doble clic: zoom +10; clic derecho: zoom −10. Los sliders de posición se actualizan con cada movimiento.',
         en: 'Mouse controls: drag the video; right = positive pan, left = negative pan, up = positive tilt and down = negative tilt (approx. 1° every 4 px). Double click: zoom +10; right click: zoom −10. Position sliders update with each movement.'
@@ -41,6 +47,25 @@
       zoomLabel: { es: 'Zoom', en: 'Zoom' },
       zoomIn: { es: 'Acercar', en: 'Zoom in' },
       zoomOut: { es: 'Alejar', en: 'Zoom out' }
+    },
+
+    // RTSP publication controls for the desktop dashboard.
+    rtsp: {
+      title: { es: 'Publicación RTSP', en: 'RTSP publishing' },
+      urlLabel: { es: 'URL RTSP de destino', en: 'RTSP destination URL' },
+      urlPlaceholder: { es: 'rtsp://usuario@servidor:8554/ruta', en: 'rtsp://user@server:8554/path' },
+      hint: { es: 'Pega la URL de publicación RTSP. Los datos de usuario no se muestran en el estado ni en los errores.', en: 'Paste the RTSP publish URL. User credentials are hidden in status and error messages.' },
+      showURL: { es: 'Mostrar', en: 'Show' },
+      hideURL: { es: 'Ocultar', en: 'Hide' },
+      start: { es: 'Iniciar emisión', en: 'Start publishing' },
+      pause: { es: 'Pausar emisión', en: 'Pause publishing' },
+      urlRequired: { es: 'Ingresa una URL RTSP de destino', en: 'Enter an RTSP destination URL' },
+      connecting: { es: 'Conectando…', en: 'Connecting…' },
+      publishing: { es: 'Transmitiendo', en: 'Publishing' },
+      stopping: { es: 'Pausando…', en: 'Pausing…' },
+      paused: { es: 'Pausada', en: 'Paused' },
+      error: { es: 'Error al emitir', en: 'Publishing error' },
+      stopped: { es: 'Detenida', en: 'Stopped' }
     },
 
     // Presets

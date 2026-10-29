@@ -46,6 +46,11 @@ type webStatus struct {
 	PendingRouteSteps int
 	PlayingRoute      string
 	RouteBusy         bool
+	RTSPState         rtspPublishState
+	RTSPDestination   string
+	RTSPSavedURL      string
+	RTSPError         string
+	RTSPPublishing    bool
 }
 
 // toastType is a branded type for toast notification kinds (success, info, error).

@@ -122,13 +122,25 @@ Compact **Seguir**, **Pausa**, and **Privacidad** buttons remain over the video,
 show the active camera mode, and let the user exit Privacy without reopening the
 desktop dashboard.
 
-## Phone layout
+## RTSP publishing
 
-On phone-sized screens or touch-first browsers, the same page switches to a
-full-viewport camera preview. The rest of the dashboard is hidden, while touch
-drag continues to control pan/tilt. An on-video directional pad gives precise
-pan/tilt nudges and `+`/`−` buttons control zoom. The controls are native
-buttons with translated screen-reader labels and remain keyboard-operable.
+In the desktop dashboard, enter an RTSP publish URL (for example,
+`rtsp://<user>:<password>@nv:8554/org1/testpixy`) and choose **Iniciar emisión**.
+The daemon captures the selected V4L2 mode, encodes H.264, and publishes over
+RTSP/TCP. **Pausar emisión** stops the publisher while leaving the preview
+available. Connection errors appear beside the controls; displayed status and
+errors redact URL userinfo. The URL is held only for the current publisher and
+browser page, not written to `state.json`.
+
+## RTSP publishing
+
+In the desktop dashboard, enter an RTSP publish URL (for example,
+`rtsp://<user>:<password>@nv:8554/org1/testpixy`) and choose **Iniciar emisión**.
+The daemon captures the selected V4L2 mode, encodes H.264, and publishes over
+RTSP/TCP. **Pausar emisión** stops the publisher while leaving the preview
+available. Connection errors appear beside the controls; displayed status and
+errors redact URL userinfo. The URL is held only for the current publisher and
+browser page, not written to `state.json`.
 
 ## Snapshot
 

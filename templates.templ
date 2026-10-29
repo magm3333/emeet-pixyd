@@ -85,7 +85,7 @@ templ page(s webStatus) {
 			<meta name="description" content="Control panel for the EMEET PIXY dual-camera AI webcam"/>
 			<title>EMEET PIXY — { s.Camera }</title>
 			<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235b8def' stroke-width='1.5'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Ccircle cx='12' cy='12' r='4.5'/%3E%3Ccircle cx='12' cy='12' r='1.5' fill='%235b8def' stroke='none'/%3E%3C/svg%3E"/>
-			<link rel="stylesheet" href={ fmt.Sprintf("/static/style.css?v=%s&revision=mobile-ptz-2", s.Version) }/>
+			<link rel="stylesheet" href={ fmt.Sprintf("/static/style.css?v=%s&revision=rtsp-ui-3", s.Version) }/>
 		</head>
 		<body data-init="@get('/api/events', {openWhenHidden: true})">
 			<main class="container">
@@ -115,6 +115,17 @@ templ page(s webStatus) {
 						if s.Online && s.Device != "" {
 							<div class="preview-live-dot"></div>
 							<img src="/api/stream" id="preview-img" alt="Live camera feed" aria-label="Live camera preview" aria-describedby="preview-mouse-help" draggable="false"/>
+							<div class="coverage-widget" id="coverage-widget">
+								<button class="coverage-toggle" id="coverage-toggle" type="button" role="switch" aria-checked="false" aria-controls="coverage-visual">
+									<span class="coverage-toggle-label" data-i18n="preview.coverageToggle">Esfera de cobertura</span>
+									<span class="coverage-switch-track" aria-hidden="true"><span class="coverage-switch-thumb"></span></span>
+								</button>
+								<div class="coverage-visual" id="coverage-visual" hidden>
+									<canvas class="coverage-canvas" id="coverage-canvas" width="360" height="360" role="img" aria-label="Esfera con los límites de orientación de la cámara" data-i18n-aria-label="preview.coverageDescription"></canvas>
+									<div class="coverage-readout" id="coverage-readout" aria-live="polite"></div>
+									<div class="coverage-range" data-i18n="preview.coverageRange">Alcance PTZ · 300° × 180°</div>
+								</div>
+							</div>
 							if s.Controllable {
 								<div class="mobile-ptz-controls" id="mobile-ptz-controls" role="group" aria-label="Controles táctiles PTZ" data-i18n-aria-label="mobile.controlsLabel">
 									<div class="mobile-ptz-dpad" role="group" aria-label="Pan y tilt" data-i18n-aria-label="mobile.dpadLabel">
@@ -150,26 +161,8 @@ templ page(s webStatus) {
 							</div>
 						}
 					</div>
+					@previewResolution(s)
 					if s.Online && s.Device != "" {
-						<div class="preview-resolution">
-							<label for="capture-mode-select" data-i18n="preview.resolutionLabel">Resolución y FPS</label>
-							<select id="capture-mode-select" data-current={ s.CaptureMode.ID } aria-describedby="capture-mode-help">
-								for _, mode := range s.CaptureModes {
-									if mode.ID == s.CaptureMode.ID {
-										<option value={ mode.ID } selected>{ mode.Label }</option>
-									} else {
-										<option value={ mode.ID }>{ mode.Label }</option>
-									}
-								}
-							</select>
-							<p id="capture-mode-help" aria-live="polite">
-								if s.CaptureMode.ZoomAvailable {
-									<span data-i18n="preview.zoomAvailable">Zoom digital disponible hasta 1,5×. Cambiar el modo reinicia el stream.</span>
-								} else {
-									<span data-i18n="preview.zoomUnavailable">Zoom digital no disponible en este modo. Cambiar el modo reinicia el stream.</span>
-								}
-							</p>
-						</div>
 						<p class="preview-help" id="preview-mouse-help" data-i18n="preview.mouseHelp">
 							Controles con mouse: arrastrá el video; derecha = pan positivo, izquierda = pan negativo, arriba = tilt positivo y abajo = tilt negativo (aprox. 1° cada 4 px). Doble clic: zoom +10; clic derecho: zoom −10. Los sliders de posición se actualizan con cada movimiento.
 						</p>
@@ -177,15 +170,46 @@ templ page(s webStatus) {
 					@routeSection(s)
 				</section>
 				@statusPanel(s)
+				@rtspPanel(s)
 			</main>
 			@shortcutLegend()
 			<button class="shortcut-fab" id="shortcut-fab" type="button" aria-label="Show keyboard shortcuts">?</button>
 			<div id="toast-container"></div>
 			<script type="module" src="/static/datastar.js"></script>
-			<script src={ fmt.Sprintf("/static/app.js?v=%s&revision=mobile-ptz-2", s.Version) }></script>
-			<script src={ fmt.Sprintf("/static/i18n.js?v=%s&revision=mobile-ptz-2", s.Version) }></script>
+			<script src={ fmt.Sprintf("/static/app.js?v=%s&revision=rtsp-ui-3", s.Version) }></script>
+			<script src={ fmt.Sprintf("/static/i18n.js?v=%s&revision=rtsp-ui-3", s.Version) }></script>
 		</body>
 	</html>
+}
+
+templ previewResolution(s webStatus) {
+	if s.Online && s.Device != "" {
+		<div class="preview-resolution" id="preview-resolution">
+			<label for="capture-mode-select" data-i18n="preview.resolutionLabel">Resolución y FPS</label>
+			<select id="capture-mode-select" data-current={ s.CaptureMode.ID } aria-describedby="capture-mode-help"
+				if s.RTSPPublishing {
+					disabled=""
+				}
+			>
+				for _, mode := range s.CaptureModes {
+					if mode.ID == s.CaptureMode.ID {
+						<option value={ mode.ID } selected>{ mode.Label }</option>
+					} else {
+						<option value={ mode.ID }>{ mode.Label }</option>
+					}
+				}
+			</select>
+			<p id="capture-mode-help" aria-live="polite">
+				if s.CaptureMode.ZoomAvailable {
+					<span data-i18n="preview.zoomAvailable">Zoom digital disponible hasta 1,5×. Cambiar el modo reinicia el stream.</span>
+				} else {
+					<span data-i18n="preview.zoomUnavailable">Zoom digital no disponible en este modo. Cambiar el modo reinicia el stream.</span>
+				}
+			</p>
+		</div>
+	} else {
+		<div id="preview-resolution"></div>
+	}
 }
 
 templ mobileCameraModeControls(s webStatus) {
@@ -213,6 +237,72 @@ templ mobileCameraModeButton(endpoint, key, label string, active, enabled bool) 
 	>
 		{ label }
 	</button>
+}
+
+templ rtspPanel(s webStatus) {
+<section class="rtsp-panel" id="rtsp-panel" data-signals={ fmt.Sprintf("{rtspUrl:%q}", s.RTSPSavedURL) } aria-labelledby="rtsp-title">
+		<div class="rtsp-panel-header">
+			<h2 class="rtsp-title" id="rtsp-title" data-i18n="rtsp.title">Publicación RTSP</h2>
+		</div>
+		<label class="rtsp-url-label" for="rtsp-url-input" data-i18n="rtsp.urlLabel">URL RTSP de destino</label>
+		<div class="rtsp-url-row">
+			<input
+				class="rtsp-url-input"
+				id="rtsp-url-input"
+				type="password"
+				inputmode="url"
+				autocomplete="off"
+				spellcheck="false"
+				data-bind="rtspUrl"
+				data-i18n-placeholder="rtsp.urlPlaceholder"
+				placeholder="rtsp://servidor:8554/ruta"
+				aria-describedby="rtsp-url-hint"
+				data-on:keydown="evt.key === 'Enter' && document.getElementById('rtsp-start-btn') && document.getElementById('rtsp-start-btn').click()"
+			/>
+			<button class="btn btn-small btn-ghost rtsp-url-toggle" id="rtsp-url-toggle" type="button" aria-controls="rtsp-url-input" aria-pressed="false" data-i18n="rtsp.showURL">Mostrar</button>
+		</div>
+		<p class="rtsp-hint" id="rtsp-url-hint" data-i18n="rtsp.hint">Pega la URL de publicación RTSP. Los datos de usuario no se muestran en el estado ni en los errores.</p>
+		@rtspControls(s)
+		@rtspStatus(s)
+	</section>
+}
+
+templ rtspControls(s webStatus) {
+	<div class="rtsp-actions" id="rtsp-controls">
+		if s.RTSPPublishing {
+			<button class="btn btn-small btn-ghost" id="rtsp-pause-btn" type="button" data-on:click="@post('/api/rtsp/stop')" data-i18n="rtsp.pause">Pausar emisión</button>
+		} else {
+			<button class="btn btn-small" id="rtsp-start-btn" type="button" data-on:click="$rtspUrl.trim() ? @post('/api/rtsp/start') : window.__showToast(window.__i18n('rtsp.urlRequired'), 'error')" data-i18n="rtsp.start">Iniciar emisión</button>
+		}
+	</div>
+}
+
+templ rtspStatus(s webStatus) {
+	<div class="rtsp-status" id="rtsp-status" role="status" aria-live="polite" aria-atomic="true">
+		<div class="rtsp-status-line">
+			<span class={ "rtsp-state-dot", "rtsp-state-" + string(s.RTSPState) } aria-hidden="true"></span>
+			switch s.RTSPState {
+				case rtspStateStarting:
+					<span data-i18n="rtsp.connecting">Conectando…</span>
+				case rtspStatePublishing:
+					<span data-i18n="rtsp.publishing">Transmitiendo</span>
+				case rtspStateStopping:
+					<span data-i18n="rtsp.stopping">Pausando…</span>
+				case rtspStatePaused:
+					<span data-i18n="rtsp.paused">Pausada</span>
+				case rtspStateError:
+					<span data-i18n="rtsp.error">Error al emitir</span>
+				default:
+					<span data-i18n="rtsp.stopped">Detenida</span>
+			}
+			if s.RTSPDestination != "" {
+				<code class="rtsp-destination">{ s.RTSPDestination }</code>
+			}
+		</div>
+		if s.RTSPError != "" {
+			<p class="rtsp-error" role="alert">{ s.RTSPError }</p>
+		}
+	</div>
 }
 
 // ---------------------------------------------------------------------------

@@ -36,10 +36,15 @@
 
 ---
 
+**Language / Idioma:** [English](#english) · [Español](#español)
+
+## English
+
 > **Fork:** this repository is based on the original
 > [LarsArtmann/emeet-pixyd](https://github.com/LarsArtmann/emeet-pixyd) project
-> (MIT). This fork adds PTZ route recording/playback, a persistent Spanish/English
-> UI, capture-mode controls, and Docker images for `linux/amd64` and `linux/arm64`.
+> (MIT). This fork adds PTZ route recording/playback, simultaneous RTSP publishing
+> and web preview, a persistent Spanish/English UI, the optional coverage globe,
+> capture-mode controls, and Docker images for `linux/amd64` and `linux/arm64`.
 
 **Contributor:** Mariano García Mattío (`magm`) — [magm3333@gmail.com](mailto:magm3333@gmail.com).
 
@@ -136,7 +141,10 @@ camera's intelligence underneath it.
 | **Modo recorrido**     | Record manual PTZ routes, save named routes, and replay once, looped, or ping-pong             |
 | **Route safety**       | Suspends camera AI tracking during recording/playback and restores the exact previous mode     |
 | **Bilingual UI**       | Persistent Spanish/English selector                                                          |
+| **Coverage globe**     | Optional semi-transparent PTZ coverage sphere over the video preview                           |
 | **Phone UI**           | Full-screen preview with touch pan/tilt dragging, directional nudges, zoom, and on-video Track/Idle/Privacy controls |
+| **RTSP publishing**    | Configure a destination, publish H.264 over RTSP/TCP, pause, and inspect sanitized FFmpeg errors |
+| **RTSP + preview**     | One V4L2 capture feeds both the RTSP publisher and the web preview; the configured URL is saved locally with mode `0600` |
 | **Docker**             | Multi-platform image for x86-64 and 64-bit Raspberry Pi                                       |
 | **Waybar integration** | JSON output for a custom Waybar module                                                           |
 | **Status API**         | `GET /api/status` JSON for Quickshell / DankMaterialShell bar widgets                            |
@@ -282,7 +290,10 @@ The daemon serves a dark-themed control panel at `http://127.0.0.1:8090` with:
 - Recording/playback automatically changes Track to Idle while the route runs and restores the exact prior Track/Idle/Privacy mode when it ends or is stopped
 - Loop and ping-pong playback options; camera mode controls are locked while a route is active
 - Persistent ES/EN language selector and selectable capture resolution/FPS
+- Optional semi-transparent PTZ coverage globe with the unreachable 60° rear sector and live pan/tilt marker
 - On narrow/coarse-pointer screens, a video-only layout with touch pan/tilt/zoom and camera-mode controls
+- In desktop view, configure an RTSP target, start/pause H.264 publishing, and see connection errors without exposing URL credentials in the status panel
+- A single V4L2 capture supplies the RTSP stream and web preview simultaneously; the destination URL is saved under the state directory with permissions `0600`
 - Camera model badge and battery row (shown when the device reports it)
 - Gesture control and auto-mode toggles
 - Toast notifications for state changes
@@ -296,7 +307,7 @@ All config is via environment variables (no CLI flags — `os.Args` is reserved 
 
 | Variable                     | Default            | Description                                                                                               |
 | ---------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------- |
-| `EMEET_PIXYD_STATE_DIR`      | `/run/emeet-pixyd` | Runtime state directory (socket + state.json)                                                             |
+| `EMEET_PIXYD_STATE_DIR`      | `/run/emeet-pixyd` | Runtime state directory (socket, state.json, and saved RTSP destination)                                   |
 | `EMEET_PIXYD_WEB_ADDR`       | `127.0.0.1:8090`   | Web UI listen address (localhost only)                                                                    |
 | `EMEET_PIXYD_POLL_INTERVAL`  | `2s`               | Call detection polling interval (Go duration)                                                             |
 | `EMEET_PIXYD_DEBOUNCE_COUNT` | `3`                | Consecutive polls before state change                                                                     |
@@ -322,7 +333,7 @@ The daemon integrates with these Linux tools (all provided by the NixOS module):
 | Tool          | Purpose                           | Required            |
 | ------------- | --------------------------------- | ------------------- |
 | `v4l2-ctl`    | Pan/tilt/zoom control via V4L2    | Yes                 |
-| `ffmpeg`      | MJPEG streaming in web UI         | For preview only    |
+| `ffmpeg`      | MJPEG preview and H.264 RTSP publishing | For preview/RTSP |
 | `wpctl`       | PipeWire default source switching | For audio switching |
 | `notify-send` | Desktop notifications             | Optional            |
 
@@ -345,6 +356,8 @@ commands.go         Command routing (socket + CLI), PTZ/audio/auto/gesture handl
 handlers.go         HTTP routing, web handlers, toast propagation, PTZ axis lookup table
 metrics.go          OTel metrics registration and updates
 stream.go           MJPEG streaming, snapshot, JPEG frame extraction, checkDevice guard
+rtsp.go             RTSP FFmpeg publisher, shared preview-frame fan-out, saved destination
+capture_mode.go     Camera capture profiles and model-specific resolution choices
 middleware.go       Middleware variable assignments (implementations live in http.go)
 sse.go              SSE-only: Broadcaster (thread-safe fan-out), per-client SSE, event helpers
 http.go             HTTP helpers: writeJSON, middleware chain, security/request/logging middleware
@@ -415,3 +428,193 @@ MIT — see [LICENSE](LICENSE).
 <p align="center">
   <a href="https://emeet-pixyd.lars.software">Full documentation at emeet-pixyd.lars.software</a>
 </p>
+
+---
+
+## Español
+
+**emeet-pixyd** es un daemon para Linux que automatiza las funciones de las cámaras EMEET PIXY y PIXY 2K. Detecta videollamadas observando qué procesos abren la cámara: activa seguimiento facial y cancelación de ruido al comenzar una llamada, cambia la entrada de audio a la PIXY y activa el modo privacidad al terminarla.
+
+No requiere configuración por aplicación ni una extensión del navegador. La IA de seguimiento y gestos se ejecuta en el firmware de la cámara; el daemon la controla por HID y no envía telemetría ni realiza llamadas a la nube.
+
+**Autor de este fork:** Mariano García Mattío (`magm`) — [magm3333@gmail.com](mailto:magm3333@gmail.com). Basado en el proyecto MIT [LarsArtmann/emeet-pixyd](https://github.com/LarsArtmann/emeet-pixyd).
+
+### Para quién es
+
+- Usuarios de Linux con una PIXY que quieren que el seguimiento y la privacidad se activen automáticamente.
+- Usuarios de NixOS que prefieren una configuración declarativa.
+- Usuarios de Waybar o Quickshell que quieren mostrar el estado de la cámara.
+- Personas que buscan que el obturador físico bloquee la lente cuando no hay una llamada.
+
+No está pensado para macOS/Windows, para cámaras EMEET que no sean PIXY ni para administrar cámaras de varios fabricantes. Las C960, C950, C970 y S600L son cámaras UVC fijas, controladas por el kernel; el daemon las reconoce, pero no les envía comandos del firmware PIXY.
+
+### Dispositivos compatibles
+
+| Dispositivo | ID USB | Compatibilidad |
+| --- | --- | --- |
+| EMEET PIXY | `328f:00c0` | Completa: seguimiento, privacidad, audio, PTZ, presets y batería |
+| EMEET PIXY 2K | `328f:0118` | Completa: mismo protocolo que PIXY |
+| C960 / C960 2K | `328f:003f` / `328f:2013` / `328f:007c` | Reconocida; cámara UVC fija |
+| C950 / C970 | `328f:0073` / `328f:002d` | Reconocida; cámara UVC fija |
+| S600L | `328f:00ef` | Reconocida; cámara UVC fija |
+| Otros dispositivos EMEET | `328f:*` | Identificados como desconocidos; se informa el ID del producto |
+
+Para probar una variante PIXY no incluida, se puede indicar su PID, separado por comas:
+
+```bash
+EMEET_PIXYD_EXTRA_PRODUCT_IDS=0x0119 emeet-pixyd
+```
+
+### Funciones
+
+- Detección de llamadas mediante `/proc`, compatible con cualquier aplicación que abra la cámara.
+- Seguimiento facial, modo privacidad y selección de audio automática.
+- Interfaz web DataStar con vista MJPEG, controles PTZ, presets, recorridos, batería y notificaciones.
+- Selector de idioma español/inglés, resolución y FPS.
+- Esfera PTZ opcional semitransparente sobre el video: muestra el rango de movimiento, el sector trasero no alcanzable y la orientación actual.
+- Envío RTSP H.264/TCP desde el panel de escritorio. Una única captura V4L2 alimenta tanto RTSP como el preview web. La URL se guarda en el directorio de estado con permisos `0600`; credenciales no aparecen en el estado ni en los errores.
+- Interfaz móvil de pantalla completa con gestos táctiles y controles Track/Pausa/Privacidad.
+- Integraciones con Waybar, Quickshell y métricas Prometheus.
+- Modo de seguimiento automático, hotplug USB y módulo NixOS.
+
+### Inicio rápido
+
+#### NixOS (recomendado)
+
+Agrega el input al `flake.nix`:
+
+```nix
+inputs.emeet-pixyd.url = "github:magm3333/emeet-pixyd";
+
+# En nixosConfiguration:
+inputs.emeet-pixyd.nixosModules.default
+```
+
+Luego configura el módulo:
+
+```nix
+hardware.emeet-pixy = {
+  enable = true;
+  auto = "full";           # off | full | tracking-only | privacy-only
+  defaultAudio = "nc";     # nc | live | org
+  debug = false;
+};
+```
+
+El módulo instala el daemon, las reglas udev, el servicio systemd de usuario y sus dependencias.
+
+#### Compilar desde el código fuente
+
+```bash
+git clone https://github.com/magm3333/emeet-pixyd.git
+cd emeet-pixyd
+nix build    # o go build -o emeet-pixyd . con Go >= 1.27.1
+```
+
+#### Docker (amd64 y Raspberry Pi arm64)
+
+La imagen multi-plataforma está publicada como [`magm3333/emeet-pixy-dual-cam:latest`](https://hub.docker.com/r/magm3333/emeet-pixy-dual-cam) para `linux/amd64` y `linux/arm64`. Consulta [`docker/README.md`](docker/README.md) para permisos USB, Compose y compilación.
+
+### Comandos
+
+Sin argumentos, `emeet-pixyd` inicia el daemon. Los comandos siguientes se comunican con la instancia activa por socket Unix:
+
+```text
+emeet-pixy status                 # Estado completo
+emeet-pixy track                  # Activar seguimiento facial
+emeet-pixy idle                   # Dejar la cámara en espera
+emeet-pixy privacy                # Bloquear físicamente la lente
+emeet-pixy toggle-privacy         # Alternar privacidad
+emeet-pixy center                 # Centrar pan/tilt y zoom
+emeet-pixy audio [nc|live|org]    # Consultar o cambiar audio
+emeet-pixy auto [mode]            # off, full, tracking-only, privacy-only
+emeet-pixy pan <value>            # Pan −150° a 150°; rel+/-N para relativo
+emeet-pixy tilt <value>           # Tilt −90° a 90°; rel+/-N para relativo
+emeet-pixy zoom <value>           # Zoom 100 a 150; rel+/-N para relativo
+emeet-pixy speed <axis> <value>  # Velocidad de motor (pan, tilt, zoom)
+emeet-pixy tracking <variant>     # none, face, halfbody, fullbody
+emeet-pixy battery                # Batería/carga, si el dispositivo responde
+emeet-pixy preset save <name>
+emeet-pixy preset load <name>
+emeet-pixy preset push <name>     # Guardar en un slot físico
+emeet-pixy preset pull            # Importar slots físicos como hw-N
+emeet-pixy route record start
+emeet-pixy route record stop
+emeet-pixy route save <name>
+emeet-pixy route play <name> [loop] [pingpong]
+emeet-pixy route stop
+emeet-pixy route list
+emeet-pixy sync                   # Sincronizar estado con la cámara
+emeet-pixy probe                  # Volver a detectar video e HID
+emeet-pixy device                 # Mostrar dispositivo y modelo
+emeet-pixy waybar                 # Emitir JSON para Waybar
+```
+
+### Modos automáticos
+
+| Modo | Al comenzar la llamada | Al terminar |
+| --- | --- | --- |
+| `full` (predeterminado nativo) | Seguimiento, cancelación de ruido y cambio de fuente PipeWire | Privacidad |
+| `tracking-only` | Seguimiento facial | Privacidad |
+| `privacy-only` | Sin cambios | Privacidad |
+| `off` | Control manual; no observa `/proc` | Sin cambios |
+
+`auto=off` es apropiado para uso manual o headless: el modo elegido persiste hasta que se cambie. El daemon reaplica la intención de cámara después de reinicios, reconexiones y ciclos de energía. En Docker, `auto=off` es el valor predeterminado porque el namespace privado no ve las aplicaciones de videollamada del host.
+
+### Interfaz web
+
+El daemon sirve el panel en `http://127.0.0.1:8090` (Docker publica `18090`): preview en vivo, controles Track/Idle/Privacy, audio, PTZ, velocidad de motores, presets y recorridos. Los recorridos pueden repetirse en bucle o ping-pong; mientras se ejecutan, la cámara pasa a Idle y al finalizar restaura el modo previo.
+
+La resolución y los FPS se eligen desde la interfaz. Mientras RTSP transmite, el selector queda bloqueado; pausa la emisión para cambiar el modo. Una esfera de cobertura opcional aparece sobre el preview abajo a la derecha y sigue el pan/tilt actual. El panel RTSP comparte una única captura V4L2 entre la emisión y el video web. La URL de destino se restaura al reiniciar y queda protegida en el directorio de estado.
+
+### Configuración
+
+Toda la configuración usa variables de entorno; no hay flags CLI porque `os.Args` transporta comandos al socket:
+
+| Variable | Predeterminado | Descripción |
+| --- | --- | --- |
+| `EMEET_PIXYD_STATE_DIR` | `/run/emeet-pixyd` | Socket y estado persistente |
+| `EMEET_PIXYD_WEB_ADDR` | `127.0.0.1:8090` | Dirección del panel web |
+| `EMEET_PIXYD_POLL_INTERVAL` | `2s` | Intervalo de detección de llamadas |
+| `EMEET_PIXYD_DEBOUNCE_COUNT` | `3` | Lecturas consecutivas antes de cambiar estado |
+| `EMEET_PIXYD_DEBUG` | `false` | Activar pprof en `/debug/pprof/` |
+| `EMEET_PIXYD_AUTO` | `full` (nativo), `off` (Docker) | `off`, `full`, `tracking-only`, `privacy-only` |
+| `EMEET_PIXYD_DEFAULT_AUDIO` | `nc` | `nc`, `live`, `org` |
+| `EMEET_PIXYD_EXTRA_PRODUCT_IDS` | vacío | PID hex separados por comas para variantes PIXY |
+
+Opciones NixOS: `hardware.emeet-pixy.enable`, `user`, `auto`, `defaultAudio` y `debug`.
+
+### Dependencias y arquitectura
+
+`v4l2-ctl` controla PTZ; FFmpeg ofrece preview MJPEG y publicación RTSP; `wpctl` permite cambiar la fuente PipeWire; `notify-send` es opcional. La arquitectura combina un socket Unix, servidor HTTP/API y `/metrics`, detección de procesos mediante `/proc`, eventos de hotplug netlink y notificaciones systemd `sd_notify`.
+
+La cámara PIXY debe ser la única propietaria de sus controles V4L2. Para RTSP, un solo FFmpeg captura y deriva cuadros al preview web y al encoder H.264. El estado se guarda atómicamente en `{StateDir}/state.json`; la URL RTSP se guarda aparte en `{StateDir}/state.json.rtsp-url` con permisos `0600`.
+
+### Solución de problemas
+
+| Problema | Solución |
+| --- | --- |
+| PIXY no aparece | Revisa USB con `lsusb` y ejecuta `emeet-pixy probe`; comprueba que udev esté cargado. |
+| Permiso denegado en `hidraw` | Recarga reglas udev para `328f:00c0` o `328f:0118`. |
+| Falta `v4l2-ctl` | Instala `v4l-utils`. |
+| No cambia el audio | Comprueba con `wpctl status` que PipeWire muestre la fuente PIXY. |
+| Cámara ocupada | Cierra OBS u otra pestaña/proceso que tenga abierto `/dev/video*`. |
+| EMEET reconocido pero sin controles | Es una cámara UVC fija, no una PIXY; no hay nada que corregir. |
+| Dispositivo EMEET desconocido | Para una variante PIXY, configura `EMEET_PIXYD_EXTRA_PRODUCT_IDS`; si no, informa el PID en un issue. |
+| Detección de llamadas lenta | Reduce `EMEET_PIXYD_DEBOUNCE_COUNT` o `EMEET_PIXYD_POLL_INTERVAL`. |
+
+### Desarrollo
+
+```bash
+nix develop
+nix build
+templ generate
+GOWORK=off go test -race -count=1 ./...
+GOWORK=off golangci-lint run --timeout 2m ./...
+```
+
+`GOWORK=off` es necesario porque existe un `go.work` en el directorio padre. Consulta [CONTRIBUTING.md](CONTRIBUTING.md) para el flujo completo y [la documentación del proyecto](https://emeet-pixyd.lars.software).
+
+### Licencia
+
+MIT — consulta [LICENSE](LICENSE).

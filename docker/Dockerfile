@@ -25,7 +25,7 @@ FROM alpine:3.22 AS runtime-base
 ARG INSTALL_DESKTOP_TOOLS=0
 ARG VERSION=dev
 LABEL org.opencontainers.image.title="EMEET PIXY dual-camera daemon" \
-      org.opencontainers.image.description="Linux daemon and web UI for EMEET PIXY and PIXY 2K" \
+      org.opencontainers.image.description="Bilingual Linux daemon with live preview and simultaneous RTSP publishing for EMEET PIXY and PIXY 2K" \
       org.opencontainers.image.source="https://github.com/magm3333/emeet-pixyd" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.version=${VERSION}
