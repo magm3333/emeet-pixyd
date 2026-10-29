@@ -5,16 +5,14 @@
 (function() {
   // Translation catalog
   var i18nCatalog = {
-    // Local microphone monitoring in the browser (no recording or upload).
+    // Live microphone monitoring streamed over the local LAN to the browser.
     audio: {
       monitorLabel: { es: 'Escuchar micrófono', en: 'Monitor microphone' },
-      monitorHelp: { es: 'Escucha local de la PIXY; usa auriculares para evitar eco.', en: 'Listen locally to the PIXY mic; use headphones to avoid echo.' },
-      monitorStarting: { es: 'Solicitando permiso del micrófono…', en: 'Requesting microphone permission…' },
+      monitorHelp: { es: 'Audio en vivo desde la PIXY por la red local; usa auriculares para evitar eco.', en: 'Live PIXY audio over your local network; use headphones to avoid echo.' },
+      monitorStarting: { es: 'Conectando con el micrófono…', en: 'Connecting to microphone…' },
       monitorOn: { es: 'Escuchando EMEET PIXY', en: 'Monitoring EMEET PIXY' },
-      monitorPermissionDenied: { es: 'Permite el acceso al micrófono en el navegador e inténtalo de nuevo.', en: 'Allow microphone access in the browser, then try again.' },
-      monitorDeviceMissing: { es: 'No aparece EMEET PIXY entre las entradas de micrófono del navegador.', en: 'EMEET PIXY is not listed as a browser microphone input.' },
-      monitorSecureContext: { es: 'Abre la interfaz desde localhost o una conexión HTTPS para escuchar el micrófono.', en: 'Open the UI on localhost or over HTTPS to monitor the microphone.' },
-      monitorFailed: { es: 'No se pudo iniciar la escucha del micrófono.', en: 'Could not start microphone monitoring.' }
+      monitorUnsupported: { es: 'Este navegador no puede reproducir el formato de audio del monitor.', en: 'This browser cannot play the microphone monitor audio format.' },
+      monitorStreamFailed: { es: 'No se pudo recibir el audio de la PIXY. Verifica que esté conectada y que Compose tenga habilitado el audio.', en: 'Could not receive PIXY audio. Check that it is connected and Compose has audio devices enabled.' }
     },
 
     // Status

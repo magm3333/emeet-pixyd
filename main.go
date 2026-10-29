@@ -80,7 +80,9 @@ type Daemon struct {
 	// TTL, so status/waybar surfaces cost at most one HID query per window.
 	powerCache powerCache
 
-	streamSema chan struct{}
+	streamSema         chan struct{}
+	audioMonitorMu     sync.Mutex
+	audioMonitorActive bool
 	// activeVideoStream is the current HTTP-owned V4L2 capture (if any).
 	// RTSP start cancels this session before claiming streamSema for its own
 	// shared capture so the camera is never opened twice.

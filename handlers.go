@@ -752,6 +752,7 @@ func newWebMux(server *webServer) *http.ServeMux {
 	mux.HandleFunc("POST /api/capture-mode", server.handleCaptureMode)
 	mux.HandleFunc("POST /api/rtsp/start", server.handleRTSPStart)
 	mux.HandleFunc("POST /api/rtsp/stop", server.handleRTSPStop)
+	mux.HandleFunc("GET /api/audio/monitor", server.handleAudioMonitor)
 	mux.HandleFunc("POST /api/track", server.action(cmdTrack))
 	mux.HandleFunc("POST /api/"+cmdIdle, server.action(cmdIdle))
 	mux.HandleFunc("POST /api/privacy", server.action(cmdPrivacy))

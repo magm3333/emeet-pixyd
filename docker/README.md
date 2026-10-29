@@ -19,8 +19,10 @@ Published multi-platform image:
 
 - Docker Engine con Docker Compose v2.
 - Linux `amd64` o `arm64` de 64 bits.
-- Una EMEET PIXY o PIXY 2K conectada al host. Se requieren un nodo V4L2 y uno
-  `hidraw`; la imagen **no** incluye ni simula el firmware/IA de la cámara.
+- Una EMEET PIXY o PIXY 2K conectada al host. Se requieren nodos V4L2 y
+  `hidraw`; para monitorizar el micrófono también se pasan los nodos ALSA de
+  captura (`controlC*` y `pcmC*D0c`). La imagen **no** incluye ni simula el
+  firmware/IA de la cámara.
 - Permiso del usuario de Docker para acceder al daemon Docker.
 
 Identifica los nodos y grupos del host:
@@ -114,8 +116,9 @@ docker compose --env-file docker/.env -f docker/compose.yaml exec emeet-pixyd em
   sí están disponibles. Para automatización de llamadas se requiere una
   integración específica con el namespace de procesos y la sesión PipeWire del
    host; habilitar solo `auto=full` dentro del Compose predeterminado no basta.
-- El switch **Escuchar micrófono** monitoriza la entrada PIXY localmente en el
-  navegador tras pedir permiso; no guarda ni envía audio.
+  - El switch **Escuchar micrófono** recibe un flujo Ogg/Opus desde la PIXY por
+  HTTP en la LAN; no lo guarda en disco. El Compose pasa los nodos ALSA de la
+  PIXY al contenedor. Usa una red confiable y apaga el switch al terminar.
 - Docker debe ejecutarse en un host Linux. Docker Desktop/macOS no ofrece el
   acceso USB/V4L2/hidraw que necesita la cámara.
 
@@ -346,8 +349,10 @@ docker compose --env-file docker/.env -f docker/compose.yaml exec emeet-pixyd em
   change host PipeWire without sharing its user socket. Manual camera/PTZ/routes,
   HID audio controls, and the web UI are available. Enabling `auto=full` alone
    does not provide host integration.
-- **Monitor microphone** plays the PIXY input locally in the browser after
-  permission is granted; it does not record or upload audio.
+- **Monitor microphone** streams PIXY audio to the browser as Ogg/Opus over
+  local HTTP while enabled; it is not stored on disk. Compose passes the PIXY's
+  ALSA capture/control nodes into the container. Use a trusted LAN and switch
+  monitoring off when finished.
 - Docker must run on a Linux host. Docker Desktop/macOS does not expose the USB,
   V4L2, and `hidraw` access required by the camera.
 

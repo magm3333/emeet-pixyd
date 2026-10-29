@@ -538,17 +538,14 @@
   })();
 
   /* -------------------------------------------------------------------- */
-  /*  Local microphone monitor (browser-only, no recording/network upload) */
+  /*  LAN microphone monitor (audio is streamed only while switched on)      */
   /* -------------------------------------------------------------------- */
 
   (function () {
     var button = document.getElementById("audio-monitor-toggle");
     if (!button) return;
 
-    var stream = null;
-    var audioContext = null;
-    var source = null;
-    var gainNode = null;
+    var audioPlayer = null;
     var monitoring = false;
     var busy = false;
 
@@ -570,6 +567,13 @@
       }
     }
 
+    function disposePlayer(player) {
+      if (!player) return;
+      player.pause();
+      player.removeAttribute("src");
+      player.load();
+    }
+
     function showMonitorError(key, fallback) {
       var message = translate(key, fallback);
       if (window.__showToast) window.__showToast(message, "error");
@@ -578,108 +582,42 @@
 
     async function stopMonitoring() {
       monitoring = false;
-      if (source) {
-        try { source.disconnect(); } catch (_error) { /* Already disconnected. */ }
-      }
-      if (gainNode) {
-        try { gainNode.disconnect(); } catch (_error) { /* Already disconnected. */ }
-      }
-      if (stream) stream.getTracks().forEach(function (track) { track.stop(); });
-      source = null;
-      gainNode = null;
-      stream = null;
-      var context = audioContext;
-      audioContext = null;
-      if (context && context.state !== "closed") {
-        try { await context.close(); } catch (_error) { /* Release best-effort. */ }
-      }
+      var player = audioPlayer;
+      audioPlayer = null;
+      disposePlayer(player);
       syncMonitorUI("");
     }
 
     async function startMonitoring() {
-      if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        showMonitorError(
-          "audio.monitorSecureContext",
-          "Abre la interfaz en localhost o HTTPS para escuchar el micrófono.",
-        );
-        return;
-      }
-
-      var Context = window.AudioContext || window.webkitAudioContext;
-      if (!Context) {
-        showMonitorError("audio.monitorFailed", "Este navegador no permite monitorizar el micrófono.");
+      var player = new Audio();
+      if (!player.canPlayType("audio/ogg; codecs=opus")) {
+        showMonitorError("audio.monitorUnsupported", "Este navegador no puede reproducir el flujo de audio.");
         return;
       }
 
       busy = true;
       syncMonitorUI("audio.monitorStarting");
-      var permissionStream = null;
-      var pendingStream = null;
-      var pendingContext = null;
-      var pendingSource = null;
-      var pendingGain = null;
-
+      player.preload = "none";
+      player.volume = 0.72;
+      player.src = "/api/audio/monitor?t=" + Date.now();
+      audioPlayer = player;
+      player.addEventListener("error", function () {
+        if (audioPlayer !== player || busy) return;
+        audioPlayer = null;
+        monitoring = false;
+        disposePlayer(player);
+        showMonitorError("audio.monitorStreamFailed", "No se pudo recibir el audio de la PIXY.");
+      });
       try {
-        // Create/resume synchronously from the user's click before awaiting permission.
-        pendingContext = new Context();
-        var contextReady = pendingContext.resume();
-        permissionStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        permissionStream.getTracks().forEach(function (track) { track.stop(); });
-        permissionStream = null;
-
-        var devices = await navigator.mediaDevices.enumerateDevices();
-        var pixyInput = devices.find(function (device) {
-          return device.kind === "audioinput" && /emeet|pixy/i.test(device.label);
-        });
-        if (!pixyInput || !pixyInput.deviceId) {
-          throw new Error("audio.monitorDeviceMissing");
-        }
-
-        pendingStream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            deviceId: { exact: pixyInput.deviceId },
-            echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl: false,
-          },
-        });
-        await contextReady;
-        pendingSource = pendingContext.createMediaStreamSource(pendingStream);
-        pendingGain = pendingContext.createGain();
-        pendingGain.gain.value = 0.7;
-        pendingSource.connect(pendingGain);
-        pendingGain.connect(pendingContext.destination);
-
-        stream = pendingStream;
-        audioContext = pendingContext;
-        source = pendingSource;
-        gainNode = pendingGain;
-        pendingStream = null;
-        pendingContext = null;
-        pendingSource = null;
-        pendingGain = null;
+        // The browser plays a LAN audio stream; it never requests mic access.
+        await player.play();
         monitoring = true;
         if (window.__showToast) window.__showToast(translate("audio.monitorOn", "Microphone monitoring on."), "success");
       } catch (error) {
-        if (permissionStream) permissionStream.getTracks().forEach(function (track) { track.stop(); });
-        if (pendingSource) {
-          try { pendingSource.disconnect(); } catch (_disconnectError) { /* Best-effort cleanup. */ }
-        }
-        if (pendingGain) {
-          try { pendingGain.disconnect(); } catch (_disconnectError) { /* Best-effort cleanup. */ }
-        }
-        if (pendingStream) pendingStream.getTracks().forEach(function (track) { track.stop(); });
-        if (pendingContext && pendingContext.state !== "closed") {
-          try { await pendingContext.close(); } catch (_closeError) { /* Best-effort cleanup. */ }
-        }
-
-        if (error && error.message === "audio.monitorDeviceMissing") {
-          showMonitorError("audio.monitorDeviceMissing", "EMEET PIXY is not listed as a microphone input.");
-        } else if (error && (error.name === "NotAllowedError" || error.name === "SecurityError")) {
-          showMonitorError("audio.monitorPermissionDenied", "Allow microphone access in the browser and try again.");
-        } else {
-          showMonitorError("audio.monitorFailed", "Could not start microphone monitoring.");
-        }
+        audioPlayer = null;
+        monitoring = false;
+        disposePlayer(player);
+        showMonitorError("audio.monitorStreamFailed", "No se pudo recibir el audio de la PIXY.");
       } finally {
         busy = false;
         syncMonitorUI(monitoring ? "audio.monitorOn" : "");
@@ -708,8 +646,8 @@
     }
 
     window.addEventListener("beforeunload", function () {
-      if (stream) stream.getTracks().forEach(function (track) { track.stop(); });
-      if (audioContext && audioContext.state !== "closed") audioContext.close();
+      disposePlayer(audioPlayer);
+      audioPlayer = null;
     });
     syncMonitorUI("");
   })();

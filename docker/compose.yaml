@@ -14,9 +14,12 @@ services:
     group_add:
       - "${PIXY_VIDEO_GID:-44}"
       - "${PIXY_HIDRAW_GID:-46}"
+      - "${PIXY_AUDIO_GID:-29}"
     devices:
       - "${PIXY_VIDEO_DEVICE:-/dev/video0}:${PIXY_VIDEO_CONTAINER_DEVICE:-/dev/video0}:rw"
       - "${PIXY_HIDRAW_DEVICE:-/dev/hidraw4}:${PIXY_HIDRAW_CONTAINER_DEVICE:-/dev/hidraw4}:rw"
+      - "${PIXY_AUDIO_CONTROL_DEVICE:-/dev/snd/controlC2}:${PIXY_AUDIO_CONTROL_CONTAINER_DEVICE:-/dev/snd/controlC2}:rw"
+      - "${PIXY_AUDIO_PCM_DEVICE:-/dev/snd/pcmC2D0c}:${PIXY_AUDIO_PCM_CONTAINER_DEVICE:-/dev/snd/pcmC2D0c}:rw"
     extra_hosts:
       - "nv:${RTSP_HOST_IP:-host-gateway}"
     ports:
