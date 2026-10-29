@@ -141,7 +141,7 @@ camera's intelligence underneath it.
 | **Modo recorrido**     | Record manual PTZ routes, save named routes, and replay once, looped, or ping-pong             |
 | **Route safety**       | Suspends camera AI tracking during recording/playback and restores the exact previous mode     |
 | **Bilingual UI**       | Persistent Spanish/English selector                                                          |
-| **Coverage globe**     | Optional semi-transparent PTZ coverage sphere over the video preview                           |
+| **Coverage globe**     | Optional interactive semi-transparent PTZ sphere; drag to move, see the live aim and fading movement trail |
 | **Phone UI**           | Full-screen preview with touch pan/tilt dragging, directional nudges, zoom, and on-video Track/Idle/Privacy controls |
 | **RTSP publishing**    | Configure a destination, publish H.264 over RTSP/TCP, pause, and inspect sanitized FFmpeg errors |
 | **RTSP + preview**     | One V4L2 capture feeds both the RTSP publisher and the web preview; the configured URL is saved locally with mode `0600` |
@@ -290,7 +290,7 @@ The daemon serves a dark-themed control panel at `http://127.0.0.1:8090` with:
 - Recording/playback automatically changes Track to Idle while the route runs and restores the exact prior Track/Idle/Privacy mode when it ends or is stopped
 - Loop and ping-pong playback options; camera mode controls are locked while a route is active
 - Persistent ES/EN language selector and selectable capture resolution/FPS
-- Optional semi-transparent PTZ coverage globe with the unreachable 60° rear sector and live pan/tilt marker
+- Optional semi-transparent PTZ coverage globe with the unreachable 60° rear sector; drag it to move, watch the live marker and fading route trail, and hide it with the eye button
 - On narrow/coarse-pointer screens, a video-only layout with touch pan/tilt/zoom and camera-mode controls
 - In desktop view, configure an RTSP target, start/pause H.264 publishing, and see connection errors without exposing URL credentials in the status panel
 - A single V4L2 capture supplies the RTSP stream and web preview simultaneously; the destination URL is saved under the state directory with permissions `0600`
@@ -471,7 +471,7 @@ EMEET_PIXYD_EXTRA_PRODUCT_IDS=0x0119 emeet-pixyd
 - Seguimiento facial, modo privacidad y selección de audio automática.
 - Interfaz web DataStar con vista MJPEG, controles PTZ, presets, recorridos, batería y notificaciones.
 - Selector de idioma español/inglés, resolución y FPS.
-- Esfera PTZ opcional semitransparente sobre el video: muestra el rango de movimiento, el sector trasero no alcanzable y la orientación actual.
+- Esfera PTZ opcional semitransparente sobre el video: muestra el sector trasero no alcanzable, permite mover la cámara arrastrándola, sincroniza el marcador y dibuja un rastro que se desvanece; el botón del ojo la oculta.
 - Envío RTSP H.264/TCP desde el panel de escritorio. Una única captura V4L2 alimenta tanto RTSP como el preview web. La URL se guarda en el directorio de estado con permisos `0600`; credenciales no aparecen en el estado ni en los errores.
 - Interfaz móvil de pantalla completa con gestos táctiles y controles Track/Pausa/Privacidad.
 - Integraciones con Waybar, Quickshell y métricas Prometheus.

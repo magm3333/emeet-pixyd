@@ -164,13 +164,20 @@
 
   (function () {
     var toggle = document.getElementById("coverage-toggle");
+    var eye = document.getElementById("coverage-eye");
     var panel = document.getElementById("coverage-visual");
     var canvas = document.getElementById("coverage-canvas");
     var readout = document.getElementById("coverage-readout");
-    if (!toggle || !panel || !canvas || !readout) return;
+    if (!toggle || !eye || !panel || !canvas || !readout) return;
 
     var context = canvas.getContext("2d");
     if (!context) return;
+    var trail = [];
+    var lastTrailPosition = null;
+    var syncTimer = null;
+    var sphereDrag = null;
+    var trailLifetime = 2500;
+    var maxTrailPoints = 64;
 
     function sliderValue(axis, fallback) {
       var slider = document.getElementById("slider-" + axis);
@@ -179,6 +186,24 @@
 
     function localized(key, fallback) {
       return window.__i18n ? window.__i18n(key) : fallback;
+    }
+
+    function pointOnSphere(pan, tilt, cx, cy, radius) {
+      var panRad = pan * Math.PI / 180;
+      var tiltRad = tilt * Math.PI / 180;
+      return {
+        x: cx + radius * Math.sin(panRad) * Math.cos(tiltRad),
+        y: cy - radius * Math.sin(tiltRad),
+      };
+    }
+
+    function setSlider(axis, value) {
+      var slider = document.getElementById("slider-" + axis);
+      if (!slider) return;
+      var min = Number(slider.min);
+      var max = Number(slider.max);
+      slider.value = String(Math.max(min, Math.min(max, value)));
+      slider.dispatchEvent(new Event("input", { bubbles: true }));
     }
 
     function drawGlobe() {
@@ -203,6 +228,16 @@
       var panRad = pan * Math.PI / 180;
       var tiltRad = tilt * Math.PI / 180;
       var depth = Math.cos(panRad) * Math.cos(tiltRad);
+      var now = performance.now();
+      if (!lastTrailPosition || pan !== lastTrailPosition.pan || tilt !== lastTrailPosition.tilt) {
+        if (trail.length === 0 && lastTrailPosition) {
+          trail.push({ pan: lastTrailPosition.pan, tilt: lastTrailPosition.tilt, time: now - 1 });
+        }
+        trail.push({ pan: pan, tilt: tilt, time: now });
+        lastTrailPosition = { pan: pan, tilt: tilt };
+      }
+      while (trail.length && now - trail[0].time > trailLifetime) trail.shift();
+      if (trail.length > maxTrailPoints) trail.splice(0, trail.length - maxTrailPoints);
 
       // Soft atmospheric halo and the sphere's polished glass surface.
       ctx.save();
@@ -281,11 +316,35 @@
       shade.addColorStop(1, "rgba(1, 7, 17, 0.47)");
       ctx.fillStyle = shade;
       ctx.fillRect(cx - radius, cy - radius, radius * 2, radius * 2);
+
+      // Recent PTZ samples form a short, time-fading trail along the globe.
+      if (trail.length > 1) {
+        ctx.save();
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        for (var trailIndex = 1; trailIndex < trail.length; trailIndex++) {
+          var start = pointOnSphere(trail[trailIndex - 1].pan, trail[trailIndex - 1].tilt, cx, cy, radius);
+          var end = pointOnSphere(trail[trailIndex].pan, trail[trailIndex].tilt, cx, cy, radius);
+          var age = (now - trail[trailIndex].time) / trailLifetime;
+          var opacity = Math.max(0, (1 - age) * 0.82);
+          if (opacity <= 0) continue;
+          ctx.beginPath();
+          ctx.moveTo(start.x, start.y);
+          ctx.lineTo(end.x, end.y);
+          ctx.strokeStyle = "rgba(133, 255, 236, " + opacity.toFixed(3) + ")";
+          ctx.lineWidth = 2.8 - age * 1.2;
+          ctx.shadowColor = "rgba(82, 255, 227, " + (opacity * 0.72).toFixed(3) + ")";
+          ctx.shadowBlur = 6;
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
       ctx.restore();
 
       // Current camera aim; a dashed halo indicates it is on the far hemisphere.
-      var markerX = cx + radius * Math.sin(panRad) * Math.cos(tiltRad);
-      var markerY = cy - radius * Math.sin(tiltRad);
+      var marker = pointOnSphere(pan, tilt, cx, cy, radius);
+      var markerX = marker.x;
+      var markerY = marker.y;
       ctx.save();
       ctx.beginPath();
       ctx.arc(markerX, markerY, 6.3, 0, Math.PI * 2);
@@ -320,28 +379,99 @@
       readout.textContent = panLabel + " " + formatAngle(pan) + " · " + tiltLabel + " " + formatAngle(tilt);
     }
 
-    function setVisible(visible, persist) {
+    function setVisible(visible, persist, restoreFocus) {
       panel.hidden = !visible;
+      toggle.hidden = visible;
       toggle.setAttribute("aria-checked", String(visible));
-      if (visible) drawGlobe();
+      if (visible) {
+        drawGlobe();
+        if (syncTimer === null) syncTimer = window.setInterval(drawGlobe, 35);
+      } else if (syncTimer !== null) {
+        window.clearInterval(syncTimer);
+        syncTimer = null;
+      }
       if (persist) {
         try { window.localStorage.setItem("emeet-pixyd-coverage-globe", visible ? "1" : "0"); }
         catch (_error) { /* Private browsing can disable local storage. */ }
       }
+      if (restoreFocus) (visible ? eye : toggle).focus();
     }
 
     var initiallyVisible = false;
     try { initiallyVisible = window.localStorage.getItem("emeet-pixyd-coverage-globe") === "1"; }
     catch (_error) { /* Private browsing can disable local storage. */ }
-    setVisible(initiallyVisible, false);
+    setVisible(initiallyVisible, false, false);
 
     toggle.addEventListener("click", function () {
-      setVisible(panel.hidden, true);
+      setVisible(true, true, true);
     });
+    eye.addEventListener("click", function () {
+      setVisible(false, true, true);
+    });
+
+    canvas.addEventListener("pointerdown", function (event) {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      var rect = canvas.getBoundingClientRect();
+      sphereDrag = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        startPan: sliderValue("pan", 0),
+        startTilt: sliderValue("tilt", 0),
+        width: rect.width,
+        height: rect.height,
+      };
+      canvas.classList.add("is-dragging");
+      canvas.setPointerCapture(event.pointerId);
+    });
+    canvas.addEventListener("pointermove", function (event) {
+      if (!sphereDrag || event.pointerId !== sphereDrag.pointerId) return;
+      var dx = event.clientX - sphereDrag.startX;
+      var dy = event.clientY - sphereDrag.startY;
+      setSlider("pan", sphereDrag.startPan + dx * 300 / sphereDrag.width);
+      setSlider("tilt", sphereDrag.startTilt - dy * 180 / sphereDrag.height);
+    });
+    function endSphereDrag(event) {
+      if (!sphereDrag || event.pointerId !== sphereDrag.pointerId) return;
+      if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+      canvas.classList.remove("is-dragging");
+      sphereDrag = null;
+    }
+    canvas.addEventListener("pointerup", endSphereDrag);
+    canvas.addEventListener("pointercancel", endSphereDrag);
+    canvas.addEventListener("lostpointercapture", function () {
+      canvas.classList.remove("is-dragging");
+      sphereDrag = null;
+    });
+    canvas.addEventListener("keydown", function (event) {
+      var step = event.shiftKey ? 15 : 5;
+      switch (event.key) {
+        case "ArrowLeft": setSlider("pan", sliderValue("pan", 0) - step); break;
+        case "ArrowRight": setSlider("pan", sliderValue("pan", 0) + step); break;
+        case "ArrowUp": setSlider("tilt", sliderValue("tilt", 0) + step); break;
+        case "ArrowDown": setSlider("tilt", sliderValue("tilt", 0) - step); break;
+        default: return;
+      }
+      event.preventDefault();
+    });
+
     document.addEventListener("input", function (event) {
       if (panel.hidden || !event.target || !/^slider-(pan|tilt)$/.test(event.target.id || "")) return;
       drawGlobe();
     });
+    var statusPanel = document.getElementById("status-panel");
+    if (statusPanel && window.MutationObserver) {
+      var ptzObserver = new MutationObserver(function () {
+        if (!panel.hidden) drawGlobe();
+      });
+      ptzObserver.observe(statusPanel, {
+        attributes: true,
+        attributeFilter: ["value"],
+        childList: true,
+        subtree: true,
+      });
+    }
     document.addEventListener("locale:changed", function () {
       if (!panel.hidden) drawGlobe();
     });

@@ -19,7 +19,7 @@ Published image: [`magm3333/emeet-pixy-dual-cam:latest`](https://hub.docker.com/
 
 - PTZ, audio mode, gesture, tracking, and privacy controls over the camera's HID interface.
 - Web UI with live preview, pan/tilt/zoom, resolution/FPS selection, and persistent Spanish/English language choice.
-- Optional semi-transparent PTZ coverage globe over the lower-right of the video, with the unreachable rear sector and live camera direction.
+- Optional semi-transparent interactive PTZ sphere over the lower-right of the video: drag to move, record its PTZ moves in routes, follow playback with a live marker and fading trail, and hide it with the eye button.
 - Phone-first full-screen preview with touch PTZ controls and over-video Track/Idle/Privacy buttons.
 - Desktop RTSP publishing panel with a masked destination, H.264/TCP output, start/pause controls, and sanitized errors.
 - One V4L2 capture feeds RTSP and the web preview simultaneously. The destination URL is saved locally under the mounted state directory with permissions `0600`.
@@ -51,7 +51,7 @@ Imagen publicada: [`magm3333/emeet-pixy-dual-cam:latest`](https://hub.docker.com
 
 - Controles PTZ, audio, gestos, seguimiento y privacidad mediante la interfaz HID de la cámara.
 - Interfaz web con preview en vivo, pan/tilt/zoom, selección de resolución/FPS e idioma español/inglés persistente.
-- Esfera PTZ opcional semitransparente sobre la esquina inferior derecha del video, con el sector trasero no alcanzable y la orientación actual.
+- Esfera PTZ interactiva y opcional sobre la esquina inferior derecha: arrástrala para mover la cámara y grabar recorridos; sigue la reproducción con marcador y rastro que se desvanece, y se oculta con el botón del ojo.
 - Vista móvil de pantalla completa con controles táctiles PTZ y botones Track/Pausa/Privacidad sobre el video.
 - Panel RTSP de escritorio con destino enmascarado, salida H.264/TCP, iniciar/pausar y errores sanitizados.
 - Una sola captura V4L2 alimenta simultáneamente RTSP y el preview web. La URL de destino se guarda en el directorio montado con permisos `0600`.

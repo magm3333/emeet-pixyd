@@ -62,8 +62,12 @@ func TestWebPage_PTZMouseControlsAndHelp(t *testing.T) {
 		`id="coverage-toggle"`,
 		`role="switch"`,
 		`id="coverage-visual"`,
+		`id="coverage-eye"`,
 		`id="coverage-canvas"`,
+		`role="application"`,
 		`data-i18n="preview.coverageToggle"`,
+		`>Esfera</span>`,
+		`data-i18n-aria-label="preview.coverageHide"`,
 		`id="mobile-ptz-controls"`,
 		`id="mobile-camera-modes"`,
 		`data-i18n="mobile.modePrivacy"`,
@@ -87,10 +91,13 @@ func TestWebPage_PTZMouseControlsAndHelp(t *testing.T) {
 		`id="capture-mode-select"`,
 		`value="1080p30" selected`,
 		"Zoom digital disponible hasta 1,5×",
-		`/static/app.js?v=dev&amp;revision=rtsp-ui-3`,
-		`/static/style.css?v=dev&amp;revision=rtsp-ui-3`,
-		`/static/i18n.js?v=dev&amp;revision=rtsp-ui-3`,
+		`/static/app.js?v=dev&amp;revision=rtsp-ui-7`,
+		`/static/style.css?v=dev&amp;revision=rtsp-ui-7`,
+		`/static/i18n.js?v=dev&amp;revision=rtsp-ui-7`,
 	})
+	if strings.Contains(page, `class="preview-live-dot"`) || strings.Contains(page, `>LIVE<`) {
+		t.Fatal("legacy LIVE indicator should be absent from the preview")
+	}
 
 	assetResponse := get(t, server.URL+"/static/app.js")
 	defer assetResponse.Body.Close()
@@ -106,6 +113,11 @@ func TestWebPage_PTZMouseControlsAndHelp(t *testing.T) {
 		`/api/stream?mode=`,
 		`coveragePan`,
 		`function drawGlobe()`,
+		`canvas.addEventListener("pointerdown"`,
+		`canvas.addEventListener("pointermove"`,
+		`canvas.addEventListener("keydown"`,
+		`setSlider("pan"`,
+		`setInterval(drawGlobe, 35)`,
 	})
 }
 

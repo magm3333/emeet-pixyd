@@ -217,8 +217,10 @@ En `http://127.0.0.1:18090/`, comprueba lo siguiente con la cámara conectada:
    solo el video con el pad direccional y zoom. Arrastra sobre el video para
    pan/tilt, usa las flechas/zoom para ajustes pequeños y cambia entre
    Seguir/Pausa/Privacidad desde los botones superpuestos.
-8. Activa la esfera PTZ opcional sobre el video: debe aparecer abajo a la derecha,
-   seguir la orientación pan/tilt y poder ocultarse de nuevo con el switch.
+8. Activa **Esfera**: el switch debe ocultarse y aparecer el ojo arriba a la
+   derecha del globo. Arrastra la esfera para mover la cámara; al grabar un
+   recorrido, esos movimientos deben quedar registrados. El marcador y el rastro
+   que se desvanece deben seguir la posición, y el ojo debe ocultar el globo.
 9. Inicia RTSP y comprueba que el preview continúa. El selector de resolución
    debe bloquearse durante la emisión y volver a habilitarse al pausarla.
 
@@ -439,8 +441,10 @@ At `http://127.0.0.1:18090/`, with the camera connected, verify:
 7. Open the UI from a phone on the same LAN. Confirm the video-only layout,
    directional/zoom controls, drag-to-pan/tilt, and overlaid Track/Idle/Privacy
    buttons.
-8. Enable the optional coverage globe. Confirm it overlays the lower-right of
-   the preview, follows pan/tilt, and can be hidden again.
+8. Enable **Sphere**. The switch should hide and an eye button should appear at
+   the globe's upper-right. Drag the sphere to move the camera; route recording
+   should capture those moves. Verify the marker and fading trail follow camera
+   position, and that the eye hides the sphere.
 9. Start RTSP publishing. Confirm the preview continues, the resolution selector
    is locked while publishing, and it becomes available after pausing.
 
