@@ -18,6 +18,7 @@ Published image: [`magm3333/emeet-pixy-dual-cam:latest`](https://hub.docker.com/
 ### Features
 
 - PTZ, audio mode, gesture, tracking, and privacy controls over the camera's HID interface.
+- Optional browser-local PIXY microphone monitoring, with an explicit on/off switch; audio is not recorded or uploaded.
 - Web UI with live preview, pan/tilt/zoom, resolution/FPS selection, and persistent Spanish/English language choice.
 - Optional semi-transparent interactive PTZ sphere over the lower-right of the video: drag to move, record its PTZ moves in routes, follow playback with a live marker and fading trail, and hide it with the eye button.
 - Phone-first full-screen preview with touch PTZ controls and over-video Track/Idle/Privacy buttons.
@@ -50,6 +51,7 @@ Imagen publicada: [`magm3333/emeet-pixy-dual-cam:latest`](https://hub.docker.com
 ### Funciones
 
 - Controles PTZ, audio, gestos, seguimiento y privacidad mediante la interfaz HID de la cámara.
+- Monitorización local y opcional del micrófono desde el navegador, con switch para encender/apagar; el audio no se graba ni se sube.
 - Interfaz web con preview en vivo, pan/tilt/zoom, selección de resolución/FPS e idioma español/inglés persistente.
 - Esfera PTZ interactiva y opcional sobre la esquina inferior derecha: arrástrala para mover la cámara y grabar recorridos; sigue la reproducción con marcador y rastro que se desvanece, y se oculta con el botón del ojo.
 - Vista móvil de pantalla completa con controles táctiles PTZ y botones Track/Pausa/Privacidad sobre el video.

@@ -113,7 +113,9 @@ docker compose --env-file docker/.env -f docker/compose.yaml exec emeet-pixyd em
   usuario. El control manual de cámara, PTZ, recorridos, audio por HID y la UI
   sí están disponibles. Para automatización de llamadas se requiere una
   integración específica con el namespace de procesos y la sesión PipeWire del
-  host; habilitar solo `auto=full` dentro del Compose predeterminado no basta.
+   host; habilitar solo `auto=full` dentro del Compose predeterminado no basta.
+- El switch **Escuchar micrófono** monitoriza la entrada PIXY localmente en el
+  navegador tras pedir permiso; no guarda ni envía audio.
 - Docker debe ejecutarse en un host Linux. Docker Desktop/macOS no ofrece el
   acceso USB/V4L2/hidraw que necesita la cámara.
 
@@ -223,6 +225,9 @@ En `http://127.0.0.1:18090/`, comprueba lo siguiente con la cámara conectada:
    que se desvanece deben seguir la posición, y el ojo debe ocultar el globo.
 9. Inicia RTSP y comprueba que el preview continúa. El selector de resolución
    debe bloquearse durante la emisión y volver a habilitarse al pausarla.
+10. Activa **Escuchar micrófono** y permite el acceso del navegador: la entrada
+    EMEET PIXY debe escucharse por la salida seleccionada. Apaga el switch y
+    confirma que la monitorización se detiene.
 
 El caso de llamadas automáticas requiere configurar además el acceso del
 contenedor a los procesos y al PipeWire del host; el Compose predeterminado usa
@@ -340,7 +345,9 @@ docker compose --env-file docker/.env -f docker/compose.yaml exec emeet-pixyd em
   `/proc` namespace cannot see conferencing apps on the host, and `wpctl` cannot
   change host PipeWire without sharing its user socket. Manual camera/PTZ/routes,
   HID audio controls, and the web UI are available. Enabling `auto=full` alone
-  does not provide host integration.
+   does not provide host integration.
+- **Monitor microphone** plays the PIXY input locally in the browser after
+  permission is granted; it does not record or upload audio.
 - Docker must run on a Linux host. Docker Desktop/macOS does not expose the USB,
   V4L2, and `hidraw` access required by the camera.
 
@@ -447,6 +454,8 @@ At `http://127.0.0.1:18090/`, with the camera connected, verify:
    position, and that the eye hides the sphere.
 9. Start RTSP publishing. Confirm the preview continues, the resolution selector
    is locked while publishing, and it becomes available after pausing.
+10. Enable **Monitor microphone**, allow browser mic access, and verify the PIXY
+    input is audible locally; switch it off and confirm monitoring stops.
 
 Automatic call handling additionally requires host process and PipeWire access;
 the default Compose setup uses manual mode by design.

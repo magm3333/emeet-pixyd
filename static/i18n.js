@@ -5,6 +5,18 @@
 (function() {
   // Translation catalog
   var i18nCatalog = {
+    // Local microphone monitoring in the browser (no recording or upload).
+    audio: {
+      monitorLabel: { es: 'Escuchar micrófono', en: 'Monitor microphone' },
+      monitorHelp: { es: 'Escucha local de la PIXY; usa auriculares para evitar eco.', en: 'Listen locally to the PIXY mic; use headphones to avoid echo.' },
+      monitorStarting: { es: 'Solicitando permiso del micrófono…', en: 'Requesting microphone permission…' },
+      monitorOn: { es: 'Escuchando EMEET PIXY', en: 'Monitoring EMEET PIXY' },
+      monitorPermissionDenied: { es: 'Permite el acceso al micrófono en el navegador e inténtalo de nuevo.', en: 'Allow microphone access in the browser, then try again.' },
+      monitorDeviceMissing: { es: 'No aparece EMEET PIXY entre las entradas de micrófono del navegador.', en: 'EMEET PIXY is not listed as a browser microphone input.' },
+      monitorSecureContext: { es: 'Abre la interfaz desde localhost o una conexión HTTPS para escuchar el micrófono.', en: 'Open the UI on localhost or over HTTPS to monitor the microphone.' },
+      monitorFailed: { es: 'No se pudo iniciar la escucha del micrófono.', en: 'Could not start microphone monitoring.' }
+    },
+
     // Status
     status: {
       online: { es: 'En línea', en: 'Online' },

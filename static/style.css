@@ -766,6 +766,27 @@ header h1 {
   padding: 0.25rem;
 }
 
+.audio-monitor-row {
+  margin-top: 0.48rem;
+  padding: 0.65rem 0 0.1rem;
+  border-top: 1px solid var(--border);
+}
+
+.audio-monitor-status {
+  min-height: 0;
+  color: var(--accent);
+  font-size: 0.66rem;
+}
+
+.audio-monitor-status:empty {
+  display: none;
+}
+
+.audio-monitor-toggle[aria-busy="true"] {
+  opacity: 0.62;
+  cursor: progress;
+}
+
 .segment {
   flex: 1;
   padding: 0.5rem 0.5rem;

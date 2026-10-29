@@ -67,6 +67,8 @@ func TestWebPage_PTZMouseControlsAndHelp(t *testing.T) {
 		`role="application"`,
 		`data-i18n="preview.coverageToggle"`,
 		`>Esfera</span>`,
+		`id="audio-monitor-toggle"`,
+		`data-i18n="audio.monitorLabel"`,
 		`data-i18n-aria-label="preview.coverageHide"`,
 		`id="mobile-ptz-controls"`,
 		`id="mobile-camera-modes"`,
@@ -91,9 +93,9 @@ func TestWebPage_PTZMouseControlsAndHelp(t *testing.T) {
 		`id="capture-mode-select"`,
 		`value="1080p30" selected`,
 		"Zoom digital disponible hasta 1,5×",
-		`/static/app.js?v=dev&amp;revision=rtsp-ui-7`,
-		`/static/style.css?v=dev&amp;revision=rtsp-ui-7`,
-		`/static/i18n.js?v=dev&amp;revision=rtsp-ui-7`,
+		`/static/app.js?v=dev&amp;revision=rtsp-ui-10`,
+		`/static/style.css?v=dev&amp;revision=rtsp-ui-10`,
+		`/static/i18n.js?v=dev&amp;revision=rtsp-ui-10`,
 	})
 	if strings.Contains(page, `class="preview-live-dot"`) || strings.Contains(page, `>LIVE<`) {
 		t.Fatal("legacy LIVE indicator should be absent from the preview")
@@ -118,6 +120,9 @@ func TestWebPage_PTZMouseControlsAndHelp(t *testing.T) {
 		`canvas.addEventListener("keydown"`,
 		`setSlider("pan"`,
 		`setInterval(drawGlobe, 35)`,
+		`navigator.mediaDevices.getUserMedia`,
+		`createMediaStreamSource`,
+		`status.textContent !== statusText`,
 	})
 }
 

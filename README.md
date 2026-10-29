@@ -281,7 +281,7 @@ The daemon serves a dark-themed control panel at `http://127.0.0.1:8090` with:
 
 - Live MJPEG camera preview (full-width hero)
 - Camera mode cards (Track / Idle / Privacy) with SVG icons and keyboard shortcuts (T / I / P / C)
-- Audio mode selector (Noise Cancel / Live / Original)
+- Audio mode selector (Noise Cancel / Live / Original) and optional local PIXY microphone monitoring through the browser
 - PTZ sliders (pan ±150°, tilt ±90°, zoom 100–150×) with a spatial position radar
 - Motor-speed sliders and a tracking-variant picker (face / half-body / full-body)
 - Snapshot button to capture still frames
@@ -564,6 +564,8 @@ emeet-pixy waybar                 # Emitir JSON para Waybar
 ### Interfaz web
 
 El daemon sirve el panel en `http://127.0.0.1:8090` (Docker publica `18090`): preview en vivo, controles Track/Idle/Privacy, audio, PTZ, velocidad de motores, presets y recorridos. Los recorridos pueden repetirse en bucle o ping-pong; mientras se ejecutan, la cámara pasa a Idle y al finalizar restaura el modo previo.
+
+La tarjeta Audio cambia Noise Cancel/Live/Original. El switch **Escuchar micrófono** reproduce la entrada de la PIXY localmente por el navegador: solicita permiso y no graba ni envía el audio. Para que te escuchen en una videollamada, selecciona `EMEET PIXY USB Audio` como micrófono en esa aplicación.
 
 La resolución y los FPS se eligen desde la interfaz. Mientras RTSP transmite, el selector queda bloqueado; pausa la emisión para cambiar el modo. Una esfera de cobertura opcional aparece sobre el preview abajo a la derecha y sigue el pan/tilt actual. El panel RTSP comparte una única captura V4L2 entre la emisión y el video web. La URL de destino se restaura al reiniciar y queda protegida en el directorio de estado.
 
