@@ -93,9 +93,9 @@ func TestWebPage_PTZMouseControlsAndHelp(t *testing.T) {
 		`id="capture-mode-select"`,
 		`value="1080p30" selected`,
 		"Zoom digital disponible hasta 1,5×",
-		`/static/app.js?v=dev&amp;revision=audio-monitor-1`,
-		`/static/style.css?v=dev&amp;revision=audio-monitor-1`,
-		`/static/i18n.js?v=dev&amp;revision=audio-monitor-1`,
+		`/static/app.js?v=dev&amp;revision=audio-monitor-2`,
+		`/static/style.css?v=dev&amp;revision=audio-monitor-2`,
+		`/static/i18n.js?v=dev&amp;revision=audio-monitor-2`,
 	})
 	if strings.Contains(page, `class="preview-live-dot"`) || strings.Contains(page, `>LIVE<`) {
 		t.Fatal("legacy LIVE indicator should be absent from the preview")

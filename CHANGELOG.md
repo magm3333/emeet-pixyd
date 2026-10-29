@@ -52,6 +52,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+- **Audio monitor connection state**: the toggle stays enabled while the browser opens the LAN stream, can cancel a slow startup, and reports active playback only after the audio element begins playing.
 - **Esfera PTZ opcional en preview**: overlay semitransparente activable, con esfera de cobertura estilizada, sector horizontal no alcanzable y marcador del pan/tilt actual; el selector de resolución ahora recibe sus propios parches SSE y se re-habilita al pausar RTSP.
 - **Resolución de captura con RTSP activo**: los conflictos 409 devuelven el perfil vigente; la interfaz restaura la selección, mantiene el control deshabilitado durante la emisión y explica que hay que pausar RTSP antes de cambiarla. Asset revision bumped para invalidar JS previamente cacheado.
 - **RTSP y preview simultáneos + destino persistente**: una captura FFmpeg alimenta RTSP H.264 y el preview MJPEG sin abrir dos veces `/dev/video0`. La URL de publicación se guarda junto al estado local con permisos `0600` y se restaura en el campo protegido de la interfaz.

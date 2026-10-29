@@ -547,6 +547,7 @@
 
     var audioPlayer = null;
     var monitoring = false;
+    var connecting = false;
     var busy = false;
 
     function translate(key, fallback) {
@@ -580,47 +581,62 @@
       syncMonitorUI("");
     }
 
-    async function stopMonitoring() {
+    function stopMonitoring() {
       monitoring = false;
+      connecting = false;
       var player = audioPlayer;
       audioPlayer = null;
       disposePlayer(player);
       syncMonitorUI("");
     }
 
-    async function startMonitoring() {
-      var player = new Audio();
-      if (!player.canPlayType("audio/ogg; codecs=opus")) {
-        showMonitorError("audio.monitorUnsupported", "Este navegador no puede reproducir el flujo de audio.");
-        return;
-      }
+    function failMonitoring(player) {
+      if (audioPlayer !== player) return;
+      audioPlayer = null;
+      monitoring = false;
+      connecting = false;
+      disposePlayer(player);
+      showMonitorError("audio.monitorStreamFailed", "No se pudo recibir el audio de la PIXY.");
+    }
 
+    function startMonitoring() {
       busy = true;
       syncMonitorUI("audio.monitorStarting");
-      player.preload = "none";
-      player.volume = 0.72;
-      player.src = "/api/audio/monitor?t=" + Date.now();
-      audioPlayer = player;
-      player.addEventListener("error", function () {
-        if (audioPlayer !== player || busy) return;
-        audioPlayer = null;
-        monitoring = false;
-        disposePlayer(player);
-        showMonitorError("audio.monitorStreamFailed", "No se pudo recibir el audio de la PIXY.");
-      });
+      var player;
       try {
-        // The browser plays a LAN audio stream; it never requests mic access.
-        await player.play();
+        player = new Audio();
+        if (!player.canPlayType("audio/ogg; codecs=opus")) {
+          busy = false;
+          showMonitorError("audio.monitorUnsupported", "Este navegador no puede reproducir el flujo de audio.");
+          return;
+        }
+        player.preload = "none";
+        player.volume = 0.72;
+        player.src = "/api/audio/monitor?t=" + Date.now();
+        audioPlayer = player;
         monitoring = true;
-        if (window.__showToast) window.__showToast(translate("audio.monitorOn", "Microphone monitoring on."), "success");
-      } catch (error) {
-        audioPlayer = null;
-        monitoring = false;
-        disposePlayer(player);
-        showMonitorError("audio.monitorStreamFailed", "No se pudo recibir el audio de la PIXY.");
-      } finally {
+        connecting = true;
+        player.addEventListener("playing", function () {
+          if (audioPlayer !== player) return;
+          connecting = false;
+          busy = false;
+          syncMonitorUI("audio.monitorOn");
+          if (window.__showToast) window.__showToast(translate("audio.monitorOn", "Monitoring EMEET PIXY"), "success");
+        }, { once: true });
+        player.addEventListener("error", function () { failMonitoring(player); }, { once: true });
+
+        // Plays the server's LAN stream; unlike getUserMedia, HTTP origins are supported.
+        var playPromise = player.play();
         busy = false;
-        syncMonitorUI(monitoring ? "audio.monitorOn" : "");
+        syncMonitorUI("audio.monitorStarting");
+        if (playPromise && typeof playPromise.catch === "function") {
+          playPromise.catch(function () { failMonitoring(player); });
+        }
+        return;
+      } catch (error) {
+        busy = false;
+        if (player) failMonitoring(player);
+        else showMonitorError("audio.monitorStreamFailed", "No se pudo recibir el audio de la PIXY.");
       }
     }
 
@@ -630,10 +646,9 @@
       if (monitoring) {
         busy = true;
         syncMonitorUI("audio.monitorStarting");
-        stopMonitoring().finally(function () {
-          busy = false;
-          syncMonitorUI("");
-        });
+        stopMonitoring();
+        busy = false;
+        syncMonitorUI("");
       } else {
         startMonitoring();
       }
@@ -641,7 +656,9 @@
 
     var statusPanel = document.getElementById("status-panel");
     if (statusPanel && window.MutationObserver) {
-      var audioPanelObserver = new MutationObserver(function () { syncMonitorUI(monitoring ? "audio.monitorOn" : ""); });
+      var audioPanelObserver = new MutationObserver(function () {
+        syncMonitorUI(connecting ? "audio.monitorStarting" : monitoring ? "audio.monitorOn" : "");
+      });
       audioPanelObserver.observe(statusPanel, { childList: true, subtree: true });
     }
 
