@@ -177,6 +177,8 @@ builder necesita binfmt/QEMU registrado para ambos targets ARM:
 
 ```bash
 docker buildx inspect npu-builder --bootstrap
+# Solo si el builder no anuncia linux/arm/v7:
+docker run --privileged --rm tonistiigi/binfmt --install arm
 bash docker/scripts/check-platforms.sh
 ```
 
@@ -431,6 +433,8 @@ binfmt/QEMU registered for both ARM targets:
 
 ```bash
 docker buildx inspect npu-builder --bootstrap
+# Only if the builder does not list linux/arm/v7:
+docker run --privileged --rm tonistiigi/binfmt --install arm
 bash docker/scripts/check-platforms.sh
 ```
 
