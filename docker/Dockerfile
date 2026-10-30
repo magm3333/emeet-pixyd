@@ -6,6 +6,7 @@ FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-bookworm AS build
 
 ARG TARGETOS
 ARG TARGETARCH
+ARG TARGETVARIANT
 ARG VERSION=dev
 
 WORKDIR /src
@@ -16,7 +17,10 @@ RUN go mod download
 
 COPY . .
 RUN go run github.com/a-h/templ/cmd/templ@v0.3.1020 generate
-RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+RUN if [ "${TARGETARCH}" = "arm" ]; then \
+        export GOARM="${TARGETVARIANT#v}"; \
+    fi \
+    && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     go build -trimpath -ldflags="-s -w -X main.buildVersion=${VERSION}" \
     -o /out/emeet-pixyd .
 

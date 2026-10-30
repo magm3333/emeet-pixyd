@@ -5,18 +5,18 @@ description: Install emeet-pixyd with Docker, on NixOS, or from source
 
 import { CardGrid, Card } from "@astrojs/starlight/components";
 
-emeet-pixyd runs on Linux (x86_64 + aarch64) and requires an EMEET PIXY dual-camera AI webcam (USB `328f:00c0`) or PIXY 2K (`328f:0118`) — see [Supported Devices](/getting-started/supported-devices/) for the full compatibility matrix, including which other EMEET webcams are recognized.
+emeet-pixyd runs on Linux (`amd64`, `arm64`, and Docker `arm/v7`) and requires an EMEET PIXY dual-camera AI webcam (USB `328f:00c0`) or PIXY 2K (`328f:0118`) — see [Supported Devices](/getting-started/supported-devices/) for the full compatibility matrix, including which other EMEET webcams are recognized.
 
 ## Prerequisites
 
-- **Linux** (x86_64 or aarch64) — the daemon uses Linux-specific APIs (`/proc`, netlink, V4L2, hidraw)
+- **Linux** (x86_64 or aarch64 for native installs; Docker also supports ARMv7) — the daemon uses Linux-specific APIs (`/proc`, netlink, V4L2, hidraw)
 - **EMEET PIXY** webcam connected via USB
 - **Go 1.27.1+** (only for building from source)
 
-## Docker (amd64 and Raspberry Pi arm64)
+## Docker (amd64, arm64 and Raspberry Pi 3 arm/v7)
 
-The fork publishes `magm3333/emeet-pixy-dual-cam` for `linux/amd64` and
-`linux/arm64`. On a 64-bit Linux host with Docker Compose v2:
+The fork publishes `magm3333/emeet-pixy-dual-cam` for `linux/amd64`,
+`linux/arm64`, and `linux/arm/v7` (32-bit Raspberry Pi 3). On a Linux host with Docker Compose v2:
 
 ```bash
 git clone https://github.com/magm3333/emeet-pixyd.git

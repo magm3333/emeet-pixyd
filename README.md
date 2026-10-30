@@ -44,7 +44,8 @@
 > [LarsArtmann/emeet-pixyd](https://github.com/LarsArtmann/emeet-pixyd) project
 > (MIT). This fork adds PTZ route recording/playback, simultaneous RTSP publishing
 > and web preview, a persistent Spanish/English UI, the optional coverage globe,
-> capture-mode controls, and Docker images for `linux/amd64` and `linux/arm64`.
+> capture-mode controls, and Docker images for `linux/amd64`, `linux/arm64`, and
+> `linux/arm/v7` (32-bit Raspberry Pi 3).
 
 **Contributor:** Mariano García Mattío (`magm`) — [magm3333@gmail.com](mailto:magm3333@gmail.com).
 
@@ -145,7 +146,7 @@ camera's intelligence underneath it.
 | **Phone UI**           | Full-screen preview with touch pan/tilt dragging, directional nudges, zoom, and on-video Track/Idle/Privacy controls |
 | **RTSP publishing**    | Configure a destination, publish H.264 over RTSP/TCP, pause, and inspect sanitized FFmpeg errors |
 | **RTSP + preview**     | One V4L2 capture feeds both the RTSP publisher and the web preview; the configured URL is saved locally with mode `0600` |
-| **Docker**             | Multi-platform image for x86-64 and 64-bit Raspberry Pi                                       |
+| **Docker**             | Multi-platform image for amd64, arm64 and 32-bit Raspberry Pi 3 (`arm/v7`)                    |
 | **Waybar integration** | JSON output for a custom Waybar module                                                           |
 | **Status API**         | `GET /api/status` JSON for Quickshell / DankMaterialShell bar widgets                            |
 | **Hotplug**            | Netlink uevent listener detects USB plug/unplug, auto-re-probes                                  |
@@ -187,11 +188,12 @@ cd emeet-pixyd
 nix build    # or, with a Go ≥ 1.27.1 toolchain: go build -o emeet-pixyd .
 ```
 
-### Docker (amd64 and Raspberry Pi arm64)
+### Docker (amd64, arm64 and Raspberry Pi 3 arm/v7)
 
 The multi-platform image is published as
 [`magm3333/emeet-pixy-dual-cam:latest`](https://hub.docker.com/r/magm3333/emeet-pixy-dual-cam)
-for `linux/amd64` and `linux/arm64`. See [`docker/README.md`](docker/README.md)
+for `linux/amd64`, `linux/arm64`, and `linux/arm/v7` (Raspberry Pi 3 32-bit).
+See [`docker/README.md`](docker/README.md)
 for camera device permissions, Compose setup, reproducible builds, and test
 checklists.
 
@@ -511,9 +513,9 @@ cd emeet-pixyd
 nix build    # o go build -o emeet-pixyd . con Go >= 1.27.1
 ```
 
-#### Docker (amd64 y Raspberry Pi arm64)
+#### Docker (amd64, arm64 y Raspberry Pi 3 arm/v7)
 
-La imagen multi-plataforma está publicada como [`magm3333/emeet-pixy-dual-cam:latest`](https://hub.docker.com/r/magm3333/emeet-pixy-dual-cam) para `linux/amd64` y `linux/arm64`. Consulta [`docker/README.md`](docker/README.md) para permisos USB, Compose y compilación.
+La imagen multi-plataforma está publicada como [`magm3333/emeet-pixy-dual-cam:latest`](https://hub.docker.com/r/magm3333/emeet-pixy-dual-cam) para `linux/amd64`, `linux/arm64` y `linux/arm/v7` (Raspberry Pi 3 de 32 bits). Consulta [`docker/README.md`](docker/README.md) para permisos USB, Compose y compilación.
 
 ### Comandos
 

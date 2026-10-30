@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **Docker `linux/arm/v7` support**: the multi-platform release now includes Raspberry Pi 3 32-bit images and a Pi 3 Compose environment example.
 - **Monitor del micrófono PIXY en la LAN**: un switch en la tarjeta Audio reproduce la entrada EMEET PIXY por los parlantes/auriculares del navegador mediante un flujo Ogg/Opus HTTP. Al apagarlo detiene la captura; el audio no se guarda en disco.
 - **Estado de conexión del monitor**: el switch queda activo y se puede apagar mientras conecta; muestra **Escuchando** cuando empieza la reproducción.
 - **Esfera PTZ interactiva**: el switch pasa a llamarse **Esfera** y se oculta al abrirla; un botón de ojo vuelve a ocultar el globo. Arrastrar la esfera o usar sus flechas mueve pan/tilt a través de los mismos sliders PTZ, por lo que las grabaciones de recorrido capturan esos movimientos. El marcador se sincroniza durante la reproducción y deja un rastro breve que se desvanece. Se elimina el indicador LIVE del preview.

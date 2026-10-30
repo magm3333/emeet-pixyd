@@ -5,7 +5,7 @@
 ## Español
 
 Esta carpeta contiene el Dockerfile, Compose y la prueba de build/runtime para
-`linux/amd64` y `linux/arm64` (Raspberry Pi con SO de 64 bits).
+`linux/amd64`, `linux/arm64` y `linux/arm/v7` (Raspberry Pi 3 de 32 bits).
 
 **Contributor:** Mariano García Mattío (`magm`) — [magm3333@gmail.com](mailto:magm3333@gmail.com).
 
@@ -13,12 +13,12 @@ Docker Hub account: <https://hub.docker.com/r/magm3333>.
 
 Published multi-platform image:
 [`magm3333/emeet-pixy-dual-cam:latest`](https://hub.docker.com/r/magm3333/emeet-pixy-dual-cam)
-(`linux/amd64`, `linux/arm64`).
+(`linux/amd64`, `linux/arm64`, `linux/arm/v7`).
 
 ## Requisitos
 
 - Docker Engine con Docker Compose v2.
-- Linux `amd64` o `arm64` de 64 bits.
+- Linux `amd64`, `arm64` o Raspberry Pi OS de 32 bits (`arm/v7`).
 - Una EMEET PIXY o PIXY 2K conectada al host. Se requieren nodos V4L2 y
   `hidraw`; para monitorizar el micrófono también se pasan los nodos ALSA de
   captura (`controlC*` y `pcmC*D0c`). La imagen **no** incluye ni simula el
@@ -29,8 +29,9 @@ Identifica los nodos y grupos del host:
 
 ```bash
 v4l2-ctl --list-devices
-ls -l /dev/video* /dev/hidraw*
-stat -c '%g %n' /dev/video0 /dev/hidraw4
+arecord -l
+ls -l /dev/video* /dev/hidraw* /dev/snd/*
+stat -c '%g %n' /dev/video0 /dev/hidraw0 /dev/snd/controlC2
 ```
 
 Edita `docker/.env` con los nodos reales y sus GID. El ejemplo usa los nodos
@@ -44,6 +45,11 @@ Para el Raspberry Pi 4 probado en esta instalación, usa
 `/dev/hidraw0`; `video` es GID 44 y `plugdev` es GID 46. La regla
 `docker/99-emeet-pixy.rules` asigna V4L2 a `video` y `hidraw` a `plugdev`, con
 modo `0660`.
+
+Para Raspberry Pi 3 de 32 bits, usa `docker/.env.raspi3.example`: PIXY en
+`/dev/video0`, `/dev/hidraw0` y ALSA `card 2`; el perfil usa `linux/arm/v7`.
+Instala `docker/99-emeet-pixy.rules` para que `hidraw0` pertenezca a `plugdev`
+con permisos `0660` antes de iniciar Compose.
 
 ## Ejecutar desde el código fuente
 
@@ -72,6 +78,19 @@ chown "$(id -u):$(id -g)" docker/data
 docker compose --env-file docker/.env -f docker/compose.yaml pull
 docker compose --env-file docker/.env -f docker/compose.yaml up -d --no-build
 python3 docker/scripts/check-live-route.py --url http://127.0.0.1:18090
+```
+
+En `raspi3carcasa` (Raspberry Pi 3 de 32 bits), instala primero la regla udev
+para que el contenedor pueda abrir HID, y usa el perfil `arm/v7`:
+
+```bash
+sudo install -m 0644 docker/99-emeet-pixy.rules /etc/udev/rules.d/99-emeet-pixy.rules
+sudo udevadm control --reload-rules && sudo udevadm trigger
+cp docker/.env.raspi3.example docker/.env
+mkdir -p docker/data
+chown "$(id -u):$(id -g)" docker/data
+docker compose --env-file docker/.env -f docker/compose.yaml pull
+docker compose --env-file docker/.env -f docker/compose.yaml up -d --no-build
 ```
 
 El puerto está ligado a loopback en la Pi. Para abrir la UI desde otra máquina,
@@ -150,11 +169,11 @@ del host (`RTSP_HOST_IP=host-gateway`). En `raspi4`, `.env.raspi4.example` apunt
 El destino de prueba de neuralVISION es de la forma
 `rtsp://publisher:<password>@nv:8554/org1/testpixy`.
 
-## Builds y prueba de ambas arquitecturas
+## Builds y prueba de todas las plataformas
 
-El script construye ambos targets. Para `amd64` carga y ejecuta el contenedor;
-para `arm64` hace que BuildKit ejecute el smoke stage con QEMU. En este entorno,
-`npu-builder` tiene `linux/arm64` habilitado con emulación:
+El script construye los tres targets. Para `amd64` carga y ejecuta el contenedor;
+para `arm64` y `arm/v7` hace que BuildKit ejecute el smoke stage con QEMU. El
+builder necesita binfmt/QEMU registrado para ambos targets ARM:
 
 ```bash
 docker buildx inspect npu-builder --bootstrap
@@ -163,9 +182,9 @@ bash docker/scripts/check-platforms.sh
 
 Se puede seleccionar otro builder con `BUILDER=nombre`. La prueba verifica que
 cada target ejecuta el daemon y las utilidades esenciales; también comprueba
-las herramientas de escritorio si `INSTALL_DESKTOP_TOOLS=1`. La ejecución
-`arm64` bajo QEMU verifica el formato y ABI de la imagen, **no equivale
-a ejecutar en una Raspberry Pi física ni valida allí el controlador USB**.
+las herramientas de escritorio si `INSTALL_DESKTOP_TOOLS=1`. QEMU verifica el
+formato y ABI de las imágenes ARM, **no equivale a ejecutar en una Raspberry Pi
+física ni valida allí el controlador USB**.
 Antes de considerar validada una instalación Raspberry Pi, corre Compose en la
 Pi con la PIXY conectada y ejecuta el checklist visual del README raíz.
 
@@ -178,7 +197,7 @@ Después de ejecutar `docker login` en el host:
 VERSION="$(git rev-parse --short HEAD)"
 docker buildx build \
   --builder npu-builder \
-  --platform linux/amd64,linux/arm64 \
+  --platform linux/amd64,linux/arm64,linux/arm/v7 \
   --build-arg VERSION="$VERSION" \
   --tag magm3333/emeet-pixy-dual-cam:latest \
   --tag "magm3333/emeet-pixy-dual-cam:$VERSION" \
@@ -187,7 +206,8 @@ docker buildx build \
 docker buildx imagetools inspect magm3333/emeet-pixy-dual-cam:latest
 ```
 
-El último comando debe listar manifiestos para `linux/amd64` y `linux/arm64`.
+El último comando debe listar manifiestos para `linux/amd64`, `linux/arm64` y
+`linux/arm/v7`.
 Para instalar esa publicación en una máquina, usa `docker compose pull` y luego
 `docker compose up -d --no-build` con el mismo archivo de Compose y `.env`.
 
@@ -241,18 +261,18 @@ modo manual por diseño.
 ## English
 
 This directory contains the Dockerfile, Compose configuration, and build/runtime
-checks for `linux/amd64` and `linux/arm64` (64-bit Raspberry Pi OS).
+checks for `linux/amd64`, `linux/arm64`, and `linux/arm/v7` (32-bit Raspberry Pi 3).
 
 **Contributor:** Mariano García Mattío (`magm`) — [magm3333@gmail.com](mailto:magm3333@gmail.com).
 
 Published multi-platform image:
 [`magm3333/emeet-pixy-dual-cam:latest`](https://hub.docker.com/r/magm3333/emeet-pixy-dual-cam)
-(`linux/amd64`, `linux/arm64`).
+(`linux/amd64`, `linux/arm64`, `linux/arm/v7`).
 
 ### Requirements
 
 - Docker Engine with Docker Compose v2.
-- 64-bit Linux on `amd64` or `arm64`.
+- Linux `amd64`, `arm64`, or 32-bit Raspberry Pi OS (`arm/v7`).
 - An EMEET PIXY or PIXY 2K connected to the host. The container needs V4L2
   video and `hidraw` nodes; the image does not include or emulate the camera's
   firmware/AI.
@@ -262,8 +282,9 @@ Identify the host device nodes and groups:
 
 ```bash
 v4l2-ctl --list-devices
-ls -l /dev/video* /dev/hidraw*
-stat -c '%g %n' /dev/video0 /dev/hidraw4
+arecord -l
+ls -l /dev/video* /dev/hidraw* /dev/snd/*
+stat -c '%g %n' /dev/video0 /dev/hidraw0 /dev/snd/controlC2
 ```
 
 Copy `docker/.env.example` to `docker/.env` and set the actual device nodes,
@@ -276,6 +297,11 @@ For the Raspberry Pi 4 used in this setup, start from
 `/dev/hidraw0`; `video` has GID 44 and `plugdev` has GID 46. The
 `docker/99-emeet-pixy.rules` udev rule assigns V4L2 to `video` and `hidraw` to
 `plugdev`, mode `0660`.
+
+For a 32-bit Raspberry Pi 3, start from `docker/.env.raspi3.example`: the PIXY
+uses `/dev/video0`, `/dev/hidraw0`, and ALSA `card 2`. This profile targets
+`linux/arm/v7`. Install `docker/99-emeet-pixy.rules` so `hidraw0` belongs to
+`plugdev` with mode `0660` before starting Compose.
 
 ### Run from source
 
@@ -304,6 +330,19 @@ chown "$(id -u):$(id -g)" docker/data
 docker compose --env-file docker/.env -f docker/compose.yaml pull
 docker compose --env-file docker/.env -f docker/compose.yaml up -d --no-build
 python3 docker/scripts/check-live-route.py --url http://127.0.0.1:18090
+```
+
+On `raspi3carcasa` (32-bit Raspberry Pi 3), install the udev rule and use the
+arm/v7 profile:
+
+```bash
+sudo install -m 0644 docker/99-emeet-pixy.rules /etc/udev/rules.d/99-emeet-pixy.rules
+sudo udevadm control --reload-rules && sudo udevadm trigger
+cp docker/.env.raspi3.example docker/.env
+mkdir -p docker/data
+chown "$(id -u):$(id -g)" docker/data
+docker compose --env-file docker/.env -f docker/compose.yaml pull
+docker compose --env-file docker/.env -f docker/compose.yaml up -d --no-build
 ```
 
 The port is bound to loopback on the Pi. To open the UI from another machine,
@@ -384,10 +423,11 @@ For MediaMTX on the same host, Compose maps `nv` to the host gateway
 neuralVISION host `192.168.195.33`; change it if MediaMTX moves. A test target has
 this form: `rtsp://publisher:<password>@nv:8554/org1/testpixy`.
 
-### Build and test both architectures
+### Build and test all platforms
 
-The script builds both architectures. It loads and executes the `amd64` image;
-BuildKit/QEMU runs the `arm64` smoke stage:
+The script builds all three platforms. It loads and executes the `amd64` image;
+BuildKit/QEMU runs the `arm64` and `arm/v7` smoke stages. The builder needs
+binfmt/QEMU registered for both ARM targets:
 
 ```bash
 docker buildx inspect npu-builder --bootstrap
@@ -396,10 +436,10 @@ bash docker/scripts/check-platforms.sh
 
 Select a different builder with `BUILDER=name`. The smoke test executes the
 daemon and required utilities for each target and checks optional desktop tools
-when `INSTALL_DESKTOP_TOOLS=1`. The `arm64` QEMU run checks image format and ABI;
-it is not a substitute for testing the USB controller on a physical Raspberry
-Pi. Before validating a Pi installation, run Compose on the Pi with a connected
-PIXY and follow the visual checklist in the root README.
+when `INSTALL_DESKTOP_TOOLS=1`. QEMU checks image format and ABI; it is not a
+substitute for testing USB access on a physical Raspberry Pi. Before validating
+a Pi installation, run Compose on the Pi with a connected PIXY and follow the
+visual checklist in the root README.
 
 ### Publish to Docker Hub
 
@@ -411,7 +451,7 @@ repository root after committing the release source:
 VERSION="$(git rev-parse --short HEAD)"
 docker buildx build \
   --builder npu-builder \
-  --platform linux/amd64,linux/arm64 \
+  --platform linux/amd64,linux/arm64,linux/arm/v7 \
   --build-arg VERSION="$VERSION" \
   --tag magm3333/emeet-pixy-dual-cam:latest \
   --tag "magm3333/emeet-pixy-dual-cam:$VERSION" \
@@ -420,8 +460,8 @@ docker buildx build \
 docker buildx imagetools inspect magm3333/emeet-pixy-dual-cam:latest
 ```
 
-The inspection should list manifests for `linux/amd64` and `linux/arm64`. On an
-installation host, run `docker compose pull` followed by
+The inspection should list manifests for `linux/amd64`, `linux/arm64`, and
+`linux/arm/v7`. On an installation host, run `docker compose pull` followed by
 `docker compose up -d --no-build` using the same Compose file and `.env`.
 
 ### Source tests and image contents

@@ -14,6 +14,7 @@ Published image: [`magm3333/emeet-pixy-dual-cam:latest`](https://hub.docker.com/
 
 - `linux/amd64` — Intel/AMD 64-bit Linux
 - `linux/arm64` — 64-bit ARM, including Raspberry Pi OS 64-bit
+- `linux/arm/v7` — 32-bit ARMv7, including Raspberry Pi 3
 
 ### Features
 
@@ -47,6 +48,7 @@ Imagen publicada: [`magm3333/emeet-pixy-dual-cam:latest`](https://hub.docker.com
 
 - `linux/amd64` — Linux de 64 bits para Intel/AMD
 - `linux/arm64` — ARM de 64 bits, incluida Raspberry Pi OS de 64 bits
+- `linux/arm/v7` — ARMv7 de 32 bits, incluida Raspberry Pi 3
 
 ### Funciones
 
